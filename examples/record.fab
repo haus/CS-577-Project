@@ -1,0 +1,14 @@
+[* record test { a : integer };
+{
+	var foo : test := test { a := 3 };
+	write("foo.a : ", foo.a)
+} *]
+record test { a : integer, b : boolean, c : test };
+{
+	var foo : test := nil;
+	var bar : test := test{ a := 3, b := false, c := foo };
+	write("bar.a : ", bar.a, " bar.b: ", bar.b);
+	var baz := test{a := 4, b := false, c := bar };
+	write("baz.c.a : ", baz.c.a);
+	write("foo.a : ", foo.a)
+}

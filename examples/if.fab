@@ -1,0 +1,6 @@
+{
+	if (not(3 > 7) or 4 < 17 and 3 >= 52 and not(false) or 2 <> 3 and 25 <= 17) then
+		write("O hai dere")
+	else
+		write("FUUUUUUUU")
+}

@@ -1,0 +1,26 @@
+{
+  var i : integer := 0;
+  var up := @boolean {15 of true};
+  var down := @boolean {15 of true};
+  var rows := @boolean {15 of true};
+  var x := @integer {8 of 0};
+
+  func print() {
+    write(x[0],x[1],x[2],x[3],x[4],x[5],x[6],x[7])
+  };
+
+  func queens(c:integer) {
+    var r := 0;
+    for r := 0 to 7 do 
+      if rows[r] and up[r-c+7] and down[r+c] then {
+	rows[r] := false;
+	up[r-c+7] := false;
+	down[r+c] := false;
+	x[c] := r;
+	if c = 7 then print() else queens (c+1);
+	rows[r] := true; up[r-c+7] := true; down[r+c] := true
+      }
+  };
+
+  queens(0)
+}

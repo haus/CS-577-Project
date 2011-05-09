@@ -1,0 +1,25 @@
+{
+	func a(b:integer) {
+		var c := b
+	};
+	a(3)
+	[* func a(b:integer, c:integer) {
+		write(b, " ", c);
+		write(d(c, b))
+	} and d(c:integer, b:integer) -> integer {
+		return c - b
+	};
+	a(3,4);
+	
+	var g := d;
+	write(g(3,4));
+	
+	func z(y:integer) -> () -> integer {
+		func x() -> integer {
+			return y
+		};
+		return x
+	};
+	var q := z(7);
+	write(q()) *]
+}

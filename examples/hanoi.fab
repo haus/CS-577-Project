@@ -1,0 +1,13 @@
+{
+  func hanoi(n: integer, src: integer, dst:integer, tmp:integer) {
+    if n > 0 then {
+      hanoi(n-1,src,tmp,dst);
+      write (n," ",src, " ", dst);
+      hanoi(n-1,tmp,dst,src)
+    }
+  };
+  
+  hanoi(5,1,2,3)
+
+}
+

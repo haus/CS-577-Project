@@ -1,0 +1,66 @@
+[* A simple imperative binary search tree *]
+record btree { v : integer, l : btree, r : btree };
+{
+  [* An empty tree *]
+  var empty : btree := nil;
+
+  [* Construct a leaf node *]
+  func leaf (v:integer) -> btree {
+    return btree{v := v, l := nil, r := nil}
+  };
+
+  [* Insert a value, returning the (modified) tree *]
+  func insert (v: integer, t : btree) -> btree {
+    if t = nil then {
+      return leaf(v)
+    } else {
+      insertNonempty (v,t);
+      return t
+    }
+  } 
+ [* insert into a non-empty tree *]
+  and insertNonempty (v : integer, t : btree) {
+    if v < t.v then {
+      t.l := insert(v,t.l)
+    } elsif v > t.v then {
+      t.r := insert(v,t.r)
+    }
+  };
+
+  [* lookup a value in the tree *]
+  func find (v:integer, t: btree) -> boolean {
+    return 
+      t <> nil and
+      (v = t.v or
+       (v < t.v and find (v,t.l)) or
+       (v > t.v and find (v,t.r)))
+  };
+
+  [* perform some simple tests *]  
+  var t : btree := empty;
+  var xs := @integer {10 of 0};
+  write ("enter 10 numbers to store in tree:");
+  read (xs[0],xs[1],xs[2],xs[3],xs[4],xs[5],xs[6],xs[7],xs[8],xs[9]);
+  var i := 0;
+  for i := 0 to 9 do { 
+    t := insert(xs[i],t)
+  };
+  write ("enter 10 numbers to look up in tree:");
+  read (xs[0],xs[1],xs[2],xs[3],xs[4],xs[5],xs[6],xs[7],xs[8],xs[9]);
+  for i := 0 to 9 do { 
+    if find(xs[i],t) then {
+      write ("found ",xs[i])
+    } else {
+      write ("did not find ", xs[i])
+    }
+  }   
+}
+
+    
+
+
+
+
+      
+    
+      

@@ -1,0 +1,4 @@
+{
+	if (true and false) then write("a") else write("b");
+	var b := true and false
+}

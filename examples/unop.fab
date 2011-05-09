@@ -1,0 +1,4 @@
+{
+	write(-3);
+	write(not true)
+}

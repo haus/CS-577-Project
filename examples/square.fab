@@ -1,0 +1,35 @@
+[* squares a matrix *]
+[* testing arrays   *]
+
+{
+  var SIZE := 5; 
+  var I := 0;
+  var J := 0;
+  var K := 0; 
+  var CELL := 0;
+  var B := @integer {SIZE of 0};
+  var C := @@integer {SIZE of @integer {SIZE of 0}};
+  var D := @@integer {SIZE of @integer {SIZE of 0}};
+
+  for I:=0 to SIZE-1 do 
+    C[I][I]:= I+1;
+
+  for I:=0 to SIZE-1 do 
+    for J:=0 to SIZE-1 do {
+      CELL:=0;
+      for K:=0 to SIZE-1 do 
+	CELL := CELL + C[I][K]*C[K][J];
+      D[I][J] := CELL
+    };
+
+  write("Input matrix"); 
+  for I:=0 to SIZE-1 do 
+    write(C[I][0],"  ",C[I][1],"  ",C[I][2],"  ",C[I][3],"  ",C[I][4]);
+  write();
+
+  write("Input matrix squared"); 
+  for I:=0 to SIZE-1 do 
+    write(D[I][0],"  ",D[I][1],"  ",D[I][2],"  ",D[I][3],"  ",D[I][4])
+}
+
+

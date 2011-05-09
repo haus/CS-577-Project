@@ -1,0 +1,56 @@
+{
+  var N := 10;
+  var a := @integer {N of 0};
+
+  func quicksort(a:@integer, m:integer, n: integer) {
+    func partition(y:integer, z:integer) -> integer {
+      var i := y;
+      var j := z + 1;
+      while (i < j) do {
+        loop {
+	  i := i + 1;
+	  if a[i] >= a[y] or i >= n then 
+	    exit
+        };
+	loop {
+          j := j - 1;
+          if a[j] <= a[y] then
+            exit
+        };
+	if i < j then
+          exchange(i,j)
+      };
+      exchange(y,j);
+      return j
+    } 
+    and exchange(p : integer, q: integer) {
+      var x := a[p];
+      a[p] := a[q];
+      a[q] := x
+    };
+    if n > m then {
+      var i : integer := partition(m,n);
+      quicksort(a,m,i-1);
+      quicksort(a,i+1,n)
+    }
+  };
+
+  func readarray() {
+    var i := 0;
+    for i := 0 to N-2 do 
+      read (a[i]);
+    a[i] := -1000
+  };
+
+  func writearray() {
+    var i := 0;
+    for i := 0 to N-2 do 
+      write (a[i])
+  };
+
+  readarray();
+  writearray();
+  quicksort(a,0,N-2);
+  writearray()
+}
+

@@ -1,0 +1,7 @@
+{
+	loop {
+		var a := 1;
+		exit;
+		var b := 3
+	}
+}

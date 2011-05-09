@@ -1,0 +1,25 @@
+{
+  var size := 1000;
+  var IsPrime := @boolean {size of true};
+  var i := 0;
+  var j := 0;
+  var k := 0;
+  var prime := 0;
+  var count := 0;
+  func mark (x:integer) {
+    if x < size then {
+      IsPrime[x] := false;
+      x := x + prime;
+      mark(x)
+    }
+  };		
+
+  for j := 0 to size - 1 do 
+    if IsPrime[j] then {
+       prime := j + j + 3;
+       k := j + prime;
+       mark(k);
+       count := count + 1
+    };
+  write("The number of prime numbers less than ", size, " is ", count)
+}

@@ -1,0 +1,14 @@
+{
+	var w := 10;
+	func f(x:integer) -> (() -> unit) {
+		var y := x + w;
+		func g() {
+			write(w+y)
+		};
+		return g
+	};
+	var y := 4;
+	var h := f(5);
+	w := 20;
+	h()
+}

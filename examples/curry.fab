@@ -1,0 +1,56 @@
+record list {value:integer, next:list};
+{
+  func cons (v:integer, n: list) -> list {
+    return list{value := v, next := n}
+  };
+
+  func map (f:integer -> integer) -> list -> list {
+    func mapl (l:list) -> list {
+      if l = nil then 
+        return nil
+      else 
+        return cons(f(l.value),map(f)(l.next))
+    };
+    return mapl
+  };
+
+  func plus (n:integer) -> integer -> integer {
+    func plusn (x:integer) -> integer {
+      return x+n
+    };
+    return plusn
+  };
+
+
+  func writelist (l:list) {
+    if l = nil then
+      return
+    else {
+      write(l.value);
+      writelist(l.next)
+    }
+  };
+
+
+  [* interactive tests *]
+  var N := 5;
+
+  var inc : integer := 0;
+  write ("enter increment");
+  read(inc);
+  var g := map(plus(inc));
+  loop {
+    var l : list := nil;
+    write ("enter ", N, " list elements ");
+    var i := 0;
+    for i := 0 to N-1 do {
+      var x := 0;
+      read (x);
+      l := cons(x,l)
+    };
+    write ("list is: ");
+    writelist(l);
+    write ("result is: ");
+    writelist(g(l))
+  }      
+}

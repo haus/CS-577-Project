@@ -1,0 +1,9 @@
+{
+	var a := 5 mod 3 * 14 div 3;
+	write(a)
+[*	var b := @integer { 3 of 5, 2 of 4};
+	var c := b[a - 1];
+	var d := @boolean { 1 of true, 1 of false};
+	d[0] := false; 
+	write(a,b[1],b[4],c,d[0],d[1]) *]
+}

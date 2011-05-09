@@ -1,0 +1,25 @@
+record foo { a:real };
+{
+	var a:integer := 0;
+	write("Please type an integer:");
+	read(a);
+	write("You typed this integer: ", a);
+	
+	var b:real := 0.0;
+	write("Please type a real number:");
+	read(b);
+	write("You typed this real: ", b);
+	
+	var f:foo := foo{ a := 3 };
+	write("f.a: ", f.a);
+	write("what should i put in f.a?");
+	read(f.a);
+	write("f.a: ", f.a);
+	
+	var c := @real{2.3, 4.7, 9.2, 0, -3};
+	write("c[0]: ", c[0], ", c[3]: ", c[3]);
+	write("What should i put in c[0] and c[3]? ");
+	read(c[0], c[3]);
+	write("c[0]: ", c[0], ", c[3]: ", c[3])
+	
+}

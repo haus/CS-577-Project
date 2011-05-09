@@ -1,0 +1,80 @@
+record CounterRep {x : integer};
+record BackupCounterRep extends CounterRep {b : integer};
+record Counter {get : () -> integer, 
+                inc : () -> unit};
+record ResetCounter extends Counter {reset : () -> unit};                 
+record BackupCounter extends ResetCounter {backup : () -> unit};
+
+{
+  func counterClass (r: CounterRep) -> Counter  {
+    func get () -> integer {
+       return r.x
+    };
+    func inc () {
+       r.x := r.x + 1
+    };
+    return Counter {get := get, inc := inc}
+  };
+  func newCounter () -> Counter {
+    return counterClass(CounterRep {x := 1})
+  };
+
+  func resetCounterClass (r: CounterRep) -> ResetCounter {
+    var super := counterClass(r);
+    func reset ()  {
+      r.x := 1
+    };
+    return ResetCounter { get := super.get, inc := super.inc, reset := reset}
+  };
+  func newResetCounter () -> ResetCounter {
+    return resetCounterClass(CounterRep {x := 1})
+  };
+
+  func backupCounterClass (r: BackupCounterRep) -> BackupCounter {
+    var super := resetCounterClass(r);
+    func reset () {
+      r.x := r.b
+    };
+    func backup () {
+      r.b := r.x
+    };  
+    return BackupCounter {get := super.get, inc := super.inc, reset := reset, backup := backup}
+  };
+  func newBackupCounter () -> BackupCounter {
+    return backupCounterClass(BackupCounterRep {x := 1, b := 1})
+  };
+
+  var c1 := newBackupCounter();
+  var c2 := newResetCounter();
+  var c3 := newBackupCounter();
+  var c4 := newResetCounter();
+
+  write(c1.get()," ",c2.get()," ",c3.get()," ",c4.get());  [* expect 1 1 1 1 *]
+
+  c1.inc();
+  c2.inc();
+  c3.inc();
+  c4.inc();
+
+  write(c1.get()," ",c2.get()," ",c3.get()," ",c4.get()); [* expect 2 2 2 2 *]
+
+  c1.backup();
+  c3.backup();
+
+  write(c1.get()," ",c2.get()," ",c3.get()," ",c4.get()); [* expect 2 2 2 2 *]
+
+  c1.inc();
+  c2.inc();
+  c3.inc();
+  c4.inc();
+
+  write(c1.get()," ",c2.get()," ",c3.get()," ",c4.get()); [* expect 3 3 3 3 *]
+
+  c1.reset();
+  c2.reset();
+  c3.reset();
+  c4.reset();
+  
+  write(c1.get()," ",c2.get()," ",c3.get()," ",c4.get()) [* expect 2 1 2 1 *]
+
+}
