@@ -102,7 +102,7 @@ class Ast {
     abstract Object accept(TypeExpVisitor v) throws Error; 
   }
 
-  interface TypeExpVisitor {
+  public interface TypeExpVisitor {
     Object visit(Ast.NamedType t) throws Error;
     Object visit(Ast.ArrayType t) throws Error;
     Object visit(Ast.ArrowType t) throws Error;
@@ -228,7 +228,7 @@ class Ast {
     abstract Object accept(DeclarationVisitor v) throws Error;
   }
 
-  interface DeclarationVisitor {
+  public interface DeclarationVisitor {
     Object visit (Ast.VarDec d) throws Error;
     Object visit (Ast.FuncDecs d) throws Error;
   }
@@ -307,7 +307,7 @@ class Ast {
     abstract Object accept(StVisitor v) throws Error;
   }
 
-  interface StVisitor {
+  public interface StVisitor {
     Object visit (Ast.AssignSt st0) throws Error;
     Object visit (Ast.CallSt st0) throws Error;
     Object visit (Ast.ReadSt st0) throws Error;
@@ -518,7 +518,7 @@ class Ast {
     }
   }
 
-  interface ExpVisitor {
+  public interface ExpVisitor {
     Object visit (Ast.BinOpExp e0) throws Error;
     Object visit (Ast.UnOpExp e0) throws Error;
     Object visit (Ast.LvalExp e0) throws Error;
@@ -749,7 +749,7 @@ class Ast {
     }
   }
 
-  interface LvalueVisitor {
+  public interface LvalueVisitor {
     Object visit(Ast.VarLvalue lv) throws Error;
     Object visit(Ast.ArrayDerefLvalue lv) throws Error;
     Object visit(Ast.RecordDerefLvalue lv) throws Error;

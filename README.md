@@ -14,6 +14,10 @@ To run this code, you'll need to have installed:
 - the FFI gem, after switching to jruby with `rvm jruby`, `gem install ffi`
 - the [llvm-ruby library](https://github.com/jvoorhis/ruby-llvm)
 
+And to run it, type:
+
+`rvm jruby; ruby -J-classpath 'src/frontend.jar:src:.' sandbox/integration.rb`
+
 
 Organization
 ------------
@@ -25,9 +29,16 @@ Organization
 - /src : the project
 
 
+Todo
+----
+
+- ✔ document how to run it
+- makefile for AstShim.java
+
+
 Authors
 -------
 
-Matthaus Litteken <haus@cs.pdx.edu>
-Eric O'Connell <eoc@cs.pdx.edu>
+- Matthaus Litteken <haus@cs.pdx.edu>
+- Eric O'Connell <eoc@cs.pdx.edu>
 
