@@ -9,7 +9,7 @@ Configuration
 
 To run this code, you'll need to have installed:
 
-- LLVM, built as a shared lib (`./configure --enabled-shared`)
+- LLVM, built as a shared lib (`./configure --enable-shared`)
 - JRuby 1.6 (easiest to install with rvm, `rvm install jruby`)
 - the FFI gem, after switching to jruby with `rvm jruby`, `gem install ffi`
 - the [llvm-ruby library](https://github.com/jvoorhis/ruby-llvm)
@@ -39,6 +39,5 @@ Todo
 Authors
 -------
 
-- Matthaus Litteken <haus@cs.pdx.edu>
+- Matthaus Litteken <matthaus@cs.pdx.edu>
 - Eric O'Connell <eoc@cs.pdx.edu>
-
