@@ -1,6 +1,6 @@
 import java.io.*;
 
-class AstShim {
+public class AstShim {
     public static Ast.Program giveMeAST(String path) {
     	try {
             FileInputStream is = new FileInputStream(path);
