@@ -2,7 +2,7 @@ import java.util.*;
 
 /* Copyright Andrew Tolmach 2004-2011. All rights reserved. */
 
-class Ast {
+public class Ast {
   
   public static class Error extends Exception {
     public Error(String text) {
