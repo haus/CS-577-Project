@@ -1,12 +1,13 @@
 import java.io.*;
 
-class AstShim {
+public class AstShim {
     public static Ast.Program giveMeAST(String path) {
     	try {
             FileInputStream is = new FileInputStream(path);
     	    Parser parser_obj = new Parser(new Scanner(is));
     	    Ast.Program prog = (Ast.Program) parser_obj.parse().value;
     	    Check.check(prog);
+
         	is.close();
             return prog;
     	} catch (ParseError exn) {
