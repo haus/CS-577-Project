@@ -8,12 +8,290 @@ include_class 'AstShim'
 
 source = ARGV[0] || 'examples/if.fab'
 program = AstShim::giveMeAST(source)
-print program.to_pretty(0)
-print "\n"
-print program.java_class.declared_field("rtypes")#getInstanceVariable("rtypes")
 
-class Foo
-  include Ast::TypeExpVisitor
+class Ast::Program
+  def gen
+    puts "Ast::Program"
+    
+    rtypes.each do |rtype|
+      rtype.gen
+    end
+    
+    body.gen
+  end
 end
 
-print "\n"
+class Ast::RecordTypeDec
+  def gen
+    puts "Ast::RecordTypeDec"
+  end
+end
+
+class Ast::Block
+  def gen
+    puts "Ast::Block"
+    
+    items.each do |item|
+      item.gen
+    end
+  end
+end
+
+class Ast::VarDec
+  def gen
+    puts "Ast::VarDec #{name} #{type}"
+    
+    initializer.gen
+  end
+end
+
+class Ast::FuncDecs
+  def gen
+    decs.each do |dec|
+      dec.gen
+    end
+  end
+end
+
+class Ast::FuncDec
+  def gen
+    puts "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
+    
+    body.gen
+  end
+end
+
+class Ast::AssignSt
+  def gen
+    puts "Ast::AssignSt #{lhs}"
+    
+    rhs.gen
+  end
+end
+
+class Ast::CallSt
+  def gen
+    puts "Ast::CallSt #{func} #{args}"
+  end
+end
+
+class Ast::ReadSt
+  def gen
+    puts "Ast::ReadSt"
+    
+    targets.each do |target|
+      target.gen
+    end
+  end
+end
+
+class Ast::WriteSt 
+  def gen
+    puts "Ast::WriteSt"
+    
+    exps.each do |exp|
+      exp.gen
+    end
+  end
+end
+
+class Ast::IfSt
+  def gen
+    puts "Ast::IfSt #{test}"
+    
+    ifTrue.gen
+    ifFalse.gen
+  end
+end
+
+class Ast::WhileSt 
+  def gen
+    puts "Ast::WhileSt #{test}"
+    
+    body.gen
+  end
+end
+
+class Ast::LoopSt
+  def gen
+    puts "Ast::LoopSt"
+    
+    body.gen
+  end
+end
+
+class Ast::ForSt 
+  def gen
+    puts "Ast::ForSt #{loopVar} #{start} #{stop} #{step}"
+    
+    body.gen
+  end
+end
+
+class Ast::ExitSt 
+  def gen
+    puts "Ast::ExitSt "
+  end
+end
+
+class Ast::ReturnSt
+  def gen
+    puts "Ast::ReturnSt #{returnValue}"
+  end
+end
+
+class Ast::BlockSt
+  def gen
+    puts "Ast::BlockSt"
+    
+    body.gen
+  end
+end
+
+class Ast::BinOpExp
+  OPERATORS = ['<', '<=', '>', '>=', '=', '!=', '+', '-', '*', '/', 'div', 'mod', 'and', 'or']
+  
+  def gen
+    puts "Ast::BinOpExp #{OPERATORS[binOp]}"
+    
+    left.gen
+    right.gen
+  end
+end
+
+class Ast::UnOpExp
+  OPERATORS = ['-', 'not']
+
+  def gen
+    puts "Ast::UnOpExp #{OPERATORS[unOp]}"
+    
+    operand.gen
+  end
+end
+
+class Ast::LvalExp
+  def gen
+    puts "Ast::LvalExp #{lval}"
+    # raise 'foo'
+  end
+end
+
+class Ast::CallExp
+  def gen
+    puts "Ast::CallExp #{func}"
+    
+    args.each do |arg|
+      arg.gen
+    end
+  end
+end
+
+class Ast::ArrayInit
+  def gen
+    puts "Ast::ArrayInit"
+
+    count.gen
+    value.gen
+  end
+end
+
+class Ast::ArrayExp
+  def gen
+    puts "Ast::ArrayExp #{type}"
+    
+    initializers.each do |initializer|
+      initializer.gen
+    end
+  end
+end
+
+class Ast::RecordInit
+  def gen
+    puts "Ast::RecordInit #{name} #{offset}"
+    
+    value.gen
+  end
+end
+
+class Ast::RecordExp
+  def gen
+    puts "Ast::RecordExp #{typeName}"
+    
+    initializers.each do |initializer|
+      initializer.gen
+    end
+  end
+end
+
+class Ast::IntLitExp
+  def gen
+    puts "Ast::IntLitExp #{lit}"
+  end
+end
+
+class Ast::RealLitExp
+  def gen
+    puts "Ast::RealLitExp #{lit}"
+  end
+end
+
+class Ast::StringLitExp
+  def gen
+    puts "Ast::StringLitExp #{lit}"
+  end
+end
+
+
+
+class Ast::BlockItem
+  def gen
+    puts "Ast::BlockItem #{self.class}"
+  end
+end
+
+
+program.gen
+
+# def gen_program(program)
+# end
+# 
+# def gen_block(block)
+# end
+# 
+# 
+# 
+# class TypeExpVisitor
+#   include Ast::TypeExpVisitor
+#   
+#   def visit(node)
+#   end
+# end
+# 
+# class DeclarationVisitor
+#   include Ast::DeclarationVisitor
+# 
+#   def visit(node)
+#   end
+# end
+# 
+# class StVisitor
+#   include Ast::StVisitor
+# 
+#   def visit(node)
+#   end
+# end
+# 
+# class ExpVisitor
+#   include Ast::ExpVisitor
+# 
+#   def visit(node)
+#   end
+# end
+# 
+# class LvalueVisitor
+#   include Ast::LvalueVisitor
+# 
+#   def visit(node)
+#   end
+# end
+# 
