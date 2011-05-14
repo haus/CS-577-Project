@@ -23,6 +23,19 @@ $mod = LLVM::Module.create("fabl")
 $current_function = nil
 $current_block = nil
 $builder = LLVM::Builder.create
+$temp = 0
+$symbols = {}
+
+def returning(val)
+  yield val
+  val
+end
+
+def next_temp
+  returning "t_#{$temp}" do
+    $temp += 1
+  end
+end
 
 class Ast::Program
   def gen
@@ -32,17 +45,24 @@ class Ast::Program
       rtype.gen
     end
     
-    $mod.functions.add("$main", [LLVM.Void], LLVM::Int) do |main,|
+    $mod.functions.add("$main", [LLVM.Void], LLVM::Int32) do |main,|
       $current_function = main
       $current_block = main.basic_blocks.append
       
       $builder.position_at_end($current_block)
       
       body.gen
+      
+      ret = $builder.load $symbols[body.items.to_ary.last.name], "return"
+      $builder.ret ret
     end
     
-    # $mod.verify
+    $mod.verify
     $mod.dump
+
+    engine = LLVM::ExecutionEngine.create_jit_compiler($mod)
+    value = engine.run_function($mod.functions["$main"])
+    puts "Value: #{value.to_i}"
   end
 end
 
@@ -67,7 +87,8 @@ class Ast::VarDec
     puts "Ast::VarDec #{name} #{type}"
     
     value = initializer.gen
-    variable = $builder.alloca(LLVM::Int, name)
+    variable = $builder.alloca(LLVM::Int32, name)
+    $symbols[name] = variable
     $builder.store(value, variable)
   end
 end
@@ -177,12 +198,18 @@ end
 
 class Ast::BinOpExp
   OPERATORS = ['<', '<=', '>', '>=', '=', '!=', '+', '-', '*', '/', 'div', 'mod', 'and', 'or']
+  INSTRUCTIONS = [nil, nil, nil, nil, nil, nil, :add, :sub, :mul, :fdiv, :sdiv, :srem, :and, :or]
   
   def gen
     puts "Ast::BinOpExp #{OPERATORS[binOp]}"
     
-    left.gen
-    right.gen
+    lhs = left.gen
+    rhs = right.gen
+
+    l = $builder.load lhs, next_temp
+    r = $builder.load rhs, next_temp
+
+    $builder.send INSTRUCTIONS[binOp], l, r, next_temp
   end
 end
 
@@ -199,7 +226,8 @@ end
 class Ast::LvalExp
   def gen
     puts "Ast::LvalExp #{lval}"
-    # raise 'foo'
+
+    $symbols[lval.name]
   end
 end
 
@@ -253,7 +281,7 @@ end
 class Ast::IntLitExp
   def gen
     puts "Ast::IntLitExp #{lit}"
-    LLVM::Int(lit.to_i)
+    LLVM::Int32.from_i(lit.to_i)
   end
 end
 
