@@ -52,7 +52,7 @@ class Ast::Program
       $builder.position_at_end($current_block)
       
       body.gen
-      
+
       ret = $builder.load $symbols[body.items.to_ary.last.name], "return"
       $builder.ret ret
     end
@@ -206,10 +206,7 @@ class Ast::BinOpExp
     lhs = left.gen
     rhs = right.gen
 
-    l = $builder.load lhs, next_temp
-    r = $builder.load rhs, next_temp
-
-    $builder.send INSTRUCTIONS[binOp], l, r, next_temp
+    $builder.send INSTRUCTIONS[binOp], lhs, rhs, next_temp
   end
 end
 
@@ -227,7 +224,7 @@ class Ast::LvalExp
   def gen
     puts "Ast::LvalExp #{lval}"
 
-    $symbols[lval.name]
+    $builder.load $symbols[lval.name], next_temp
   end
 end
 
