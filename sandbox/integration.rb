@@ -3,11 +3,26 @@ require 'rubygems'
 require 'ruby-debug'
 require 'src/frontend.jar'
 
+$: << 'lib'
+
+require 'llvm/core'
+require 'llvm/execution_engine'
+require 'llvm/transforms/scalar'
+
+LLVM.init_x86
+
 include_class 'Ast'
 include_class 'AstShim'
+include_class 'Check'
 
 source = ARGV[0] || 'examples/if.fab'
 program = AstShim::giveMeAST(source)
+Check.check(program)
+
+$mod = LLVM::Module.create("fabl")
+$current_function = nil
+$current_block = nil
+$builder = LLVM::Builder.create
 
 class Ast::Program
   def gen
@@ -17,7 +32,17 @@ class Ast::Program
       rtype.gen
     end
     
-    body.gen
+    $mod.functions.add("$main", [LLVM.Void], LLVM::Int) do |main,|
+      $current_function = main
+      $current_block = main.basic_blocks.append
+      
+      $builder.position_at_end($current_block)
+      
+      body.gen
+    end
+    
+    # $mod.verify
+    $mod.dump
   end
 end
 
@@ -41,7 +66,9 @@ class Ast::VarDec
   def gen
     puts "Ast::VarDec #{name} #{type}"
     
-    initializer.gen
+    value = initializer.gen
+    variable = $builder.alloca(LLVM::Int, name)
+    $builder.store(value, variable)
   end
 end
 
@@ -226,6 +253,7 @@ end
 class Ast::IntLitExp
   def gen
     puts "Ast::IntLitExp #{lit}"
+    LLVM::Int(lit.to_i)
   end
 end
 
@@ -241,8 +269,6 @@ class Ast::StringLitExp
   end
 end
 
-
-
 class Ast::BlockItem
   def gen
     puts "Ast::BlockItem #{self.class}"
@@ -251,47 +277,3 @@ end
 
 
 program.gen
-
-# def gen_program(program)
-# end
-# 
-# def gen_block(block)
-# end
-# 
-# 
-# 
-# class TypeExpVisitor
-#   include Ast::TypeExpVisitor
-#   
-#   def visit(node)
-#   end
-# end
-# 
-# class DeclarationVisitor
-#   include Ast::DeclarationVisitor
-# 
-#   def visit(node)
-#   end
-# end
-# 
-# class StVisitor
-#   include Ast::StVisitor
-# 
-#   def visit(node)
-#   end
-# end
-# 
-# class ExpVisitor
-#   include Ast::ExpVisitor
-# 
-#   def visit(node)
-#   end
-# end
-# 
-# class LvalueVisitor
-#   include Ast::LvalueVisitor
-# 
-#   def visit(node)
-#   end
-# end
-# 
