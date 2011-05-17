@@ -113,7 +113,10 @@ class Ast::AssignSt
   def gen
     puts "Ast::AssignSt #{lhs}"
     
-    rhs.gen
+    ref = lhs.gen
+    val = rhs.gen
+    
+    $builder.store(val, ref)
   end
 end
 
@@ -147,8 +150,27 @@ class Ast::IfSt
   def gen
     puts "Ast::IfSt #{test}"
     
+    testVal      = test.gen
+    trueBlock    = $current_function.basic_blocks.append
+    falseBlock   = $current_function.basic_blocks.append
+    endBlock     = $current_function.basic_blocks.append
+    
+    $builder.cond(
+      $builder.icmp(:eq, testVal, LLVM::Int(1)),
+      trueBlock, falseBlock)
+
+    $builder.position_at_end(trueBlock)
+    $current_block = trueBlock
     ifTrue.gen
+    $builder.br(endBlock)
+
+    $builder.position_at_end(falseBlock)
+    $current_block = falseBlock
     ifFalse.gen
+    $builder.br(endBlock)
+    
+    $builder.position_at_end(endBlock)
+    $current_block = endBlock
   end
 end
 
@@ -322,5 +344,11 @@ class Ast::BlockItem
   end
 end
 
+class Ast::VarLvalue
+  def gen
+    puts "Ast::VarLvalue #{name}"
+    return $symbols[name]
+  end
+end
 
 program.gen
