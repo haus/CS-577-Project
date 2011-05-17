@@ -50,9 +50,7 @@ class Context
   end
 
   def new_block
-    returning @current_function.basic_blocks.append do |b|
-      self.current_block = b
-    end
+    @current_function.basic_blocks.append
   end
   
   def current_block=(block)
@@ -93,6 +91,8 @@ class Ast::Program
     
     context.add_function("$main", [LLVM.Void], LLVM::Int32) do |main,|
       entry = context.new_block
+      context.current_block = entry
+      
       body.gen(context)
 
       # XXX:eo hack, last item must be a vardec, gives return value
@@ -157,7 +157,10 @@ class Ast::AssignSt
   def gen(context)
     puts "Ast::AssignSt #{lhs}"
     
-    rhs.gen(context)
+    ref = lhs.gen(context)
+    val = rhs.gen(context)
+    
+    context.builder.store(val, ref)
   end
 end
 
@@ -191,8 +194,23 @@ class Ast::IfSt
   def gen(context)
     puts "Ast::IfSt #{test}"
     
+    test_val      = test.gen(context)
+    true_block    = context.new_block
+    false_block   = context.new_block
+    end_block     = context.new_block
+    
+    context.builder.cond(context.builder.icmp(:eq, test_val, LLVM::Int1.from_i(1)), 
+      true_block, false_block)
+
+    context.current_block = true_block
     ifTrue.gen(context)
+    context.builder.br(end_block)
+
+    context.current_block = false_block
     ifFalse.gen(context)
+    context.builder.br(end_block)
+    
+    context.current_block = end_block
   end
 end
 
@@ -200,7 +218,24 @@ class Ast::WhileSt
   def gen(context)
     puts "Ast::WhileSt #{test}"
     
+    test_block = context.new_block
+    body_block = context.new_block
+    exit_block = context.new_block
+
+    context.builder.br(test_block)
+
+    context.current_block = test_block
+    test_val = test.gen(context)
+    
+    context.builder.cond(context.builder.icmp(:eq, test_val, LLVM::Int1.from_i(1)), 
+      body_block, exit_block)
+    
+    context.current_block = body_block
     body.gen(context)
+    
+    context.builder.br(test_block)
+    
+    context.current_block = exit_block
   end
 end
 
@@ -242,25 +277,46 @@ end
 
 class Ast::BinOpExp
   OPERATORS = ['<', '<=', '>', '>=', '=', '!=', '+', '-', '*', '/', 'div', 'mod', 'and', 'or']
-  INSTRUCTIONS = [nil, nil, nil, nil, nil, nil, :add, :sub, :mul, :fdiv, :sdiv, :srem, :and, :or]
-  
+  INSTRUCTIONS = [:slt, :sle, :sgt, :sge, :eq, :ne, :add, :sub, :mul, :fdiv, :sdiv, :srem, :and, :or]
+  # Builds an icmp Instruction. Compares lhs to rhs (Instructions)
+  # using the given symbol predicate (pred):
+  #   :eq  - equal to
+  #   :ne  - not equal to
+  #   :ugt - unsigned greater than
+  #   :uge - unsigned greater than or equal to
+  #   :ult - unsigned less than
+  #   :ule - unsigned less than or equal to
+  #   :sgt - signed greater than
+  #   :sge - signed greater than or equal to
+  #   :slt - signed less than
+  #   :sle - signed less than or equal to
+  # @LLVMinst icmp
+  # def icmp(pred, lhs, rhs, name = "")
+  #   Instruction.from_ptr(C.LLVMBuildICmp(self, pred, lhs, rhs, name))
+  # end
   def gen(context)
     puts "Ast::BinOpExp #{OPERATORS[binOp]}"
     
     lhs = left.gen(context)
     rhs = right.gen(context)
-
-    context.builder.send INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
+    if binOp >= 6
+      context.builder.send INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
+    else
+      context.builder.send :icmp, INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
+    end
   end
 end
 
 class Ast::UnOpExp
   OPERATORS = ['-', 'not']
+  INSTRUCTIONS = [:neg , :not]
 
   def gen(context)
     puts "Ast::UnOpExp #{OPERATORS[unOp]}"
     
-    operand.gen(context)
+    op = operand.gen(context)
+
+    context.builder.send INSTRUCTIONS[unOp], op, context.next_temp
   end
 end
 
@@ -344,5 +400,11 @@ class Ast::BlockItem
   end
 end
 
+class Ast::VarLvalue
+  def gen(context)
+    puts "Ast::VarLvalue #{name}"
+    return context[name]
+  end
+end
 
 program.gen(Context.new("fabl"))

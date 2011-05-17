@@ -16,7 +16,7 @@ To run this code, you'll need to have installed:
 
 And to run it, type:
 
-`rvm jruby; ruby -J-classpath 'src/frontend.jar:src:.' sandbox/integration.rb`
+`rvm jruby; ruby -J-classpath 'src:src/frontend.jar:.' sandbox/integration.rb`
 
 
 Organization

@@ -1,0 +1,18 @@
+{
+	var a := 5;
+	var b := 12;
+	var c := a = a;
+	
+	if (a <> a) then
+		if (b = a) then
+			b := a
+		else
+			b := b + 5
+	else
+		if (b = a) then
+			b := -a
+		else
+			b := b + 10;
+		
+	var d := b
+}
