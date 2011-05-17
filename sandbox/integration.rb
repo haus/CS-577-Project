@@ -25,7 +25,7 @@ def returning(val)
 end
 
 class Context
-  attr_accessor :builder, :symbols
+  attr_accessor :builder
   
   def initialize(module_name)
     @mod = LLVM::Module.create("fabl")
@@ -51,9 +51,13 @@ class Context
 
   def new_block
     returning @current_function.basic_blocks.append do |b|
-      @current_block = b
-      @builder.position_at_end b
+      self.current_block = b
     end
+  end
+  
+  def current_block=(block)
+    @current_block = block
+    @builder.position_at_end(block)
   end
   
   def verify
@@ -67,6 +71,14 @@ class Context
   def execute
     @engine = LLVM::ExecutionEngine.create_jit_compiler(@mod)
     @engine.run_function(@mod.functions['$main'])
+  end
+  
+  def [](symbol)
+    @symbols[symbol]
+  end
+  
+  def []=(symbol, value)
+    @symbols[symbol] = value
   end
 
 end
@@ -83,7 +95,9 @@ class Ast::Program
       entry = context.new_block
       body.gen(context)
 
-      ret = context.builder.load context.symbols[body.items.to_ary.last.name], "return"
+      # XXX:eo hack, last item must be a vardec, gives return value
+      # stupid :)
+      ret = context.builder.load context[body.items.to_ary.last.name], "return"
       context.builder.ret ret
     end
 
@@ -118,7 +132,7 @@ class Ast::VarDec
     
     value = initializer.gen(context)
     variable = context.builder.alloca(LLVM::Int32, name)
-    context.symbols[name] = variable
+    context[name] = variable
     context.builder.store(value, variable)
   end
 end
@@ -254,7 +268,7 @@ class Ast::LvalExp
   def gen(context)
     puts "Ast::LvalExp #{lval}"
 
-    context.builder.load context.symbols[lval.name], context.next_temp
+    context.builder.load context[lval.name], context.next_temp
   end
 end
 
