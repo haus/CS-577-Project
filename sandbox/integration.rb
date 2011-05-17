@@ -78,12 +78,6 @@ class Ast::Program
     rtypes.each do |rtype|
       rtype.gen(context)
     end
-
-    # $mod.functions.add("$main", [LLVM.Void], LLVM::Int32) do |main,|
-    #   $current_function = main
-    #   $current_block = main.basic_blocks.append
-    #   
-    #   $builder.position_at_end($current_block)
     
     context.add_function("$main", [LLVM.Void], LLVM::Int32) do |main,|
       entry = context.new_block
