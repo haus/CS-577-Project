@@ -4,9 +4,15 @@
 	var c := a = a;
 	
 	if (a <> a) then
-		b := a
+		if (b = a) then
+			b := a
+		else
+			b := b + 5
 	else
-		b := -a;
+		if (b = a) then
+			b := -a
+		else
+			b := b + 10;
 		
 	var d := b
 }
