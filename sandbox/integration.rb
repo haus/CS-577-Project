@@ -115,7 +115,7 @@ class Ast::Program
       context.current_block = entry
       
       body.gen(context, -1, return_block)
-      
+      context.builder.br return_block
       context.current_block = return_block
 
       # XXX:eo hack, last item must be a vardec, gives return value
