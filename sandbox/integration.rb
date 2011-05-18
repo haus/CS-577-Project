@@ -91,9 +91,12 @@ class Ast::Program
     
     context.add_function("$main", [LLVM.Void], LLVM::Int32) do |main,|
       entry = context.new_block
+      return_block = context.new_block
       context.current_block = entry
       
-      body.gen(context)
+      body.gen(context, -1, return_block)
+      
+      context.current_block = return_block
 
       # XXX:eo hack, last item must be a vardec, gives return value
       # stupid :)
@@ -117,11 +120,11 @@ class Ast::RecordTypeDec
 end
 
 class Ast::Block
-  def gen(context)
+  def gen(context, exit_block, return_block)
     puts "Ast::Block"
     
     items.each do |item|
-      item.gen(context)
+      item.gen(context, exit_block, return_block)
     end
   end
 end
