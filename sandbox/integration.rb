@@ -115,6 +115,7 @@ class Ast::Program
       context.current_block = entry
       
       body.gen(context, -1, return_block)
+      context.builder.br return_block
       
       context.current_block = return_block
 
@@ -129,7 +130,7 @@ class Ast::Program
     context.dump
 
     value = context.execute
-
+    
     puts "Value: #{value.to_i}"
   end
 end
@@ -203,7 +204,7 @@ class Ast::ReadSt
     log "Ast::ReadSt"
     
     targets.each do |target|
-      target.gen(context, exit_block, return_block)
+      target.gen(context)
     end
   end
 end
@@ -212,7 +213,7 @@ class Ast::WriteSt
   def gen(context, exit_block, return_block)
     log "Ast::WriteSt"
     exps.each do |exp|
-      exp.gen(context, exit_block, return_block)
+      exp.gen(context)
     end
   end
 end
@@ -273,6 +274,8 @@ class Ast::LoopSt
     body_block = context.new_block
     exit_block = context.new_block
     
+    context.builder.br body_block
+    
     context.current_block = body_block
     body.gen(context, exit_block, return_block)
     context.builder.br(body_block)
@@ -323,7 +326,7 @@ class Ast::ExitSt
   def gen(context, exit_block, return_block)
     log "Ast::ExitSt"
     
-    #context.builder.br(exit_block)
+    context.builder.br(exit_block)
   end
 end
 
