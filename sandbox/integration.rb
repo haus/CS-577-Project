@@ -256,14 +256,35 @@ end
 class Ast::ForSt 
   def gen(context)
     puts "Ast::ForSt #{loopVar} #{start} #{stop} #{step}"
+    start = start.gen(context)
+    step = step.gen(context)
+    stop = stop.gen(context)
+
+    # Assign start to loopVar
+    context.builder.store(start, loopVar)
     
+    context.current_block = test_block
+    
+    context.builder.cond(context.builder.icmp(:sle, start, stop), 
+      body_block, exit_block)
+      
+    context.current_block = body_block
     body.gen(context)
+    
+    context.builder.send :add, start, step, start
+    context.builder.store(start, loopVar)
+    
+    context.builder.br(test_block)
+    
+    context.current_block = exit_block
   end
 end
 
 class Ast::ExitSt 
   def gen(context)
-    puts "Ast::ExitSt "
+    puts "Ast::ExitSt"
+    
+    context.builder.br(exit_block)
   end
 end
 
