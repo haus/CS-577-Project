@@ -1,7 +1,10 @@
 {
+	var a := 5;
 	loop {
-		var a := 1;
+		a := 1;
 		exit;
-		var b := 3
-	}
+		a := 3
+	};
+	
+	var d := a
 }
