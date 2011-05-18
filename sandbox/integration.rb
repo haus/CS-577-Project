@@ -19,9 +19,15 @@ source = ARGV[0] || 'examples/if.fab'
 program = AstShim::giveMeAST(source)
 Check.check(program)
 
+DEBUG = true
+
 def returning(val)
   yield val
   val
+end
+
+def log(str)
+  puts str if DEBUG
 end
 
 class Context
@@ -62,6 +68,9 @@ class Context
     @engine ||= engine
     @fpm = LLVM::FunctionPassManager.new(@engine, @mod)
     @fpm << 'mem2reg'
+    @fpm << 'constprop'
+    @fpm << 'simplifycfg'
+    @fpm << 'adce'
     @mod.functions.each {|f| @fpm.run(f) }
   end
   
@@ -94,13 +103,13 @@ end
 
 class Ast::Program
   def gen(context)
-    puts "Ast::Program"
+    log "Ast::Program"
     
     rtypes.each do |rtype|
       rtype.gen(context)
     end
     
-    context.add_function("$main", [LLVM.Void], LLVM::Int32) do |main,|
+    context.add_function("$main", [], LLVM::Int32) do |main,|
       entry = context.new_block
       context.current_block = entry
       
@@ -124,13 +133,13 @@ end
 
 class Ast::RecordTypeDec
   def gen(context)
-    puts "Ast::RecordTypeDec"
+    log "Ast::RecordTypeDec"
   end
 end
 
 class Ast::Block
   def gen(context)
-    puts "Ast::Block"
+    log "Ast::Block"
     
     items.each do |item|
       item.gen(context)
@@ -140,7 +149,7 @@ end
 
 class Ast::VarDec
   def gen(context)
-    puts "Ast::VarDec #{symbol} #{type}"
+    log "Ast::VarDec #{symbol} #{type}"
     
     value = initializer.gen(context)
     variable = context.builder.alloca(LLVM::Int32, symbol)
@@ -163,7 +172,7 @@ end
 
 class Ast::FuncDec
   def gen(context)
-    puts "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
+    log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
     
     body.gen(context)
   end
@@ -171,7 +180,7 @@ end
 
 class Ast::AssignSt
   def gen(context)
-    puts "Ast::AssignSt #{lhs}"
+    log "Ast::AssignSt #{lhs}"
     
     ref = lhs.gen(context)
     val = rhs.gen(context)
@@ -182,13 +191,13 @@ end
 
 class Ast::CallSt
   def gen(context)
-    puts "Ast::CallSt #{func} #{args}"
+    log "Ast::CallSt #{func} #{args}"
   end
 end
 
 class Ast::ReadSt
   def gen(context)
-    puts "Ast::ReadSt"
+    log "Ast::ReadSt"
     
     targets.each do |target|
       target.gen(context)
@@ -198,7 +207,7 @@ end
 
 class Ast::WriteSt 
   def gen(context)
-    puts "Ast::WriteSt"
+    log "Ast::WriteSt"
     
     exps.each do |exp|
       exp.gen(context)
@@ -208,7 +217,7 @@ end
 
 class Ast::IfSt
   def gen(context)
-    puts "Ast::IfSt #{test}"
+    log "Ast::IfSt #{test}"
     
     test_val      = test.gen(context)
     true_block    = context.new_block
@@ -232,7 +241,7 @@ end
 
 class Ast::WhileSt 
   def gen(context)
-    puts "Ast::WhileSt #{test}"
+    log "Ast::WhileSt #{test}"
     
     test_block = context.new_block
     body_block = context.new_block
@@ -257,7 +266,7 @@ end
 
 class Ast::LoopSt
   def gen(context)
-    puts "Ast::LoopSt"
+    log "Ast::LoopSt"
     body_block = context.new_block
     exit_block = context.new_block
     
@@ -271,34 +280,45 @@ end
 
 class Ast::ForSt 
   def gen(context)
-    puts "Ast::ForSt #{loopVar} #{start} #{stop} #{step}"
-    start = start.gen(context)
-    step = step.gen(context)
-    stop = stop.gen(context)
+    log "Ast::ForSt #{loop_symbol} #{start} #{stop} #{step}"
+
+    test_block = context.new_block
+    body_block = context.new_block
+    exit_block = context.new_block
+
+    loop_start = start.gen(context)
+    loop_step = step.gen(context)
+    loop_stop = stop.gen(context)
 
     # Assign start to loopVar
-    context.builder.store(start, loopVar)
+    context.builder.store(loop_start, context[loop_symbol])
+    context.builder.br(test_block)
     
     context.current_block = test_block
     
-    context.builder.cond(context.builder.icmp(:sle, start, stop), 
+    current = context.builder.send :load, context[loop_symbol], "loop_val"
+    context.builder.cond(context.builder.icmp(:sle, current, loop_stop), 
       body_block, exit_block)
       
     context.current_block = body_block
     body.gen(context)
     
-    context.builder.send :add, start, step, start
-    context.builder.store(start, loopVar)
+    result = context.builder.send :add, current, loop_step, "loop_temp"
+    context.builder.store(result, context[loop_symbol])
     
     context.builder.br(test_block)
     
     context.current_block = exit_block
   end
+  
+  def loop_symbol
+    "#{loopVar}_#{unique}"
+  end
 end
 
 class Ast::ExitSt 
   def gen(context)
-    puts "Ast::ExitSt"
+    log "Ast::ExitSt"
     
     #context.builder.br(exit_block)
   end
@@ -306,13 +326,13 @@ end
 
 class Ast::ReturnSt
   def gen(context)
-    puts "Ast::ReturnSt #{returnValue}"
+    log "Ast::ReturnSt #{returnValue}"
   end
 end
 
 class Ast::BlockSt
   def gen(context)
-    puts "Ast::BlockSt"
+    log "Ast::BlockSt"
     
     body.gen(context)
   end
@@ -338,7 +358,7 @@ class Ast::BinOpExp
   #   Instruction.from_ptr(C.LLVMBuildICmp(self, pred, lhs, rhs, name))
   # end
   def gen(context)
-    puts "Ast::BinOpExp #{OPERATORS[binOp]}"
+    log "Ast::BinOpExp #{OPERATORS[binOp]}"
     
     lhs = left.gen(context)
     rhs = right.gen(context)
@@ -355,7 +375,7 @@ class Ast::UnOpExp
   INSTRUCTIONS = [:neg , :not]
 
   def gen(context)
-    puts "Ast::UnOpExp #{OPERATORS[unOp]}"
+    log "Ast::UnOpExp #{OPERATORS[unOp]}"
     
     op = operand.gen(context)
 
@@ -365,7 +385,7 @@ end
 
 class Ast::LvalExp
   def gen(context)
-    puts "Ast::LvalExp #{lval}"
+    log "Ast::LvalExp #{lval}"
 
     context.builder.load context[lval.symbol], context.next_temp
   end
@@ -373,7 +393,7 @@ end
 
 class Ast::CallExp
   def gen(context)
-    puts "Ast::CallExp #{func}"
+    log "Ast::CallExp #{func}"
     
     args.each do |arg|
       arg.gen(context)
@@ -383,7 +403,7 @@ end
 
 class Ast::ArrayInit
   def gen(context)
-    puts "Ast::ArrayInit"
+    log "Ast::ArrayInit"
 
     count.gen(context)
     value.gen(context)
@@ -392,7 +412,7 @@ end
 
 class Ast::ArrayExp
   def gen(context)
-    puts "Ast::ArrayExp #{type}"
+    log "Ast::ArrayExp #{type}"
     
     initializers.each do |initializer|
       initializer.gen(context)
@@ -402,7 +422,7 @@ end
 
 class Ast::RecordInit
   def gen(context)
-    puts "Ast::RecordInit #{name} #{offset}"
+    log "Ast::RecordInit #{name} #{offset}"
     
     value.gen(context)
   end
@@ -410,7 +430,7 @@ end
 
 class Ast::RecordExp
   def gen(context)
-    puts "Ast::RecordExp #{typeName}"
+    log "Ast::RecordExp #{typeName}"
     
     initializers.each do |initializer|
       initializer.gen(context)
@@ -420,32 +440,32 @@ end
 
 class Ast::IntLitExp
   def gen(context)
-    puts "Ast::IntLitExp #{lit}"
+    log "Ast::IntLitExp #{lit}"
     LLVM::Int32.from_i(lit.to_i)
   end
 end
 
 class Ast::RealLitExp
   def gen(context)
-    puts "Ast::RealLitExp #{lit}"
+    log "Ast::RealLitExp #{lit}"
   end
 end
 
 class Ast::StringLitExp
   def gen(context)
-    puts "Ast::StringLitExp #{lit}"
+    log "Ast::StringLitExp #{lit}"
   end
 end
 
 class Ast::BlockItem
   def gen(context)
-    puts "Ast::BlockItem #{self.class}"
+    log "Ast::BlockItem #{self.class}"
   end
 end
 
 class Ast::VarLvalue
   def gen(context)
-    puts "Ast::VarLvalue #{symbol}"
+    log "Ast::VarLvalue #{symbol}"
     return context[symbol]
   end
   
