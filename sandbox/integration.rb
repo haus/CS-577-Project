@@ -284,7 +284,7 @@ class Ast::ExitSt
   def gen(context)
     puts "Ast::ExitSt"
     
-    context.builder.br(exit_block)
+    #context.builder.br(exit_block)
   end
 end
 
