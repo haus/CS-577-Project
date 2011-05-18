@@ -111,9 +111,12 @@ class Ast::Program
     
     context.add_function("$main", [], LLVM::Int32) do |main,|
       entry = context.new_block
+      return_block = context.new_block
       context.current_block = entry
       
-      body.gen(context)
+      body.gen(context, -1, return_block)
+      
+      context.current_block = return_block
 
       # XXX:eo hack, last item must be a vardec, gives return value
       # stupid :)
@@ -138,17 +141,17 @@ class Ast::RecordTypeDec
 end
 
 class Ast::Block
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::Block"
-    
+        
     items.each do |item|
-      item.gen(context)
+      item.gen(context, exit_block, return_block)
     end
   end
 end
 
 class Ast::VarDec
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::VarDec #{symbol} #{type}"
     
     value = initializer.gen(context)
@@ -163,7 +166,7 @@ class Ast::VarDec
 end
 
 class Ast::FuncDecs
-  def gen(context)
+  def gen(context, exit_block, return_block)
     decs.each do |dec|
       dec.gen(context)
     end
@@ -171,7 +174,7 @@ class Ast::FuncDecs
 end
 
 class Ast::FuncDec
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
     
     body.gen(context)
@@ -179,7 +182,7 @@ class Ast::FuncDec
 end
 
 class Ast::AssignSt
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::AssignSt #{lhs}"
     
     ref = lhs.gen(context)
@@ -190,33 +193,32 @@ class Ast::AssignSt
 end
 
 class Ast::CallSt
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::CallSt #{func} #{args}"
   end
 end
 
 class Ast::ReadSt
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::ReadSt"
     
     targets.each do |target|
-      target.gen(context)
+      target.gen(context, exit_block, return_block)
     end
   end
 end
 
 class Ast::WriteSt 
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::WriteSt"
-    
     exps.each do |exp|
-      exp.gen(context)
+      exp.gen(context, exit_block, return_block)
     end
   end
 end
 
 class Ast::IfSt
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::IfSt #{test}"
     
     test_val      = test.gen(context)
@@ -228,11 +230,11 @@ class Ast::IfSt
       true_block, false_block)
 
     context.current_block = true_block
-    ifTrue.gen(context)
+    ifTrue.gen(context, exit_block, return_block)
     context.builder.br(end_block)
 
     context.current_block = false_block
-    ifFalse.gen(context)
+    ifFalse.gen(context, exit_block, return_block)
     context.builder.br(end_block)
     
     context.current_block = end_block
@@ -240,7 +242,7 @@ class Ast::IfSt
 end
 
 class Ast::WhileSt 
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::WhileSt #{test}"
     
     test_block = context.new_block
@@ -256,7 +258,7 @@ class Ast::WhileSt
       body_block, exit_block)
     
     context.current_block = body_block
-    body.gen(context)
+    body.gen(context, exit_block, return_block)
     
     context.builder.br(test_block)
     
@@ -265,13 +267,14 @@ class Ast::WhileSt
 end
 
 class Ast::LoopSt
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::LoopSt"
+    
     body_block = context.new_block
     exit_block = context.new_block
     
     context.current_block = body_block
-    body.gen(context)
+    body.gen(context, exit_block, return_block)
     context.builder.br(body_block)
     
     context.current_block = exit_block
@@ -279,7 +282,7 @@ class Ast::LoopSt
 end
 
 class Ast::ForSt 
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::ForSt #{loop_symbol} #{start} #{stop} #{step}"
 
     test_block = context.new_block
@@ -301,7 +304,7 @@ class Ast::ForSt
       body_block, exit_block)
       
     context.current_block = body_block
-    body.gen(context)
+    body.gen(context, exit_block, return_block)
     
     result = context.builder.send :add, current, loop_step, "loop_temp"
     context.builder.store(result, context[loop_symbol])
@@ -317,7 +320,7 @@ class Ast::ForSt
 end
 
 class Ast::ExitSt 
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::ExitSt"
     
     #context.builder.br(exit_block)
@@ -325,16 +328,16 @@ class Ast::ExitSt
 end
 
 class Ast::ReturnSt
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::ReturnSt #{returnValue}"
   end
 end
 
 class Ast::BlockSt
-  def gen(context)
+  def gen(context, exit_block, return_block)
     log "Ast::BlockSt"
     
-    body.gen(context)
+    body.gen(context, exit_block, return_block)
   end
 end
 
