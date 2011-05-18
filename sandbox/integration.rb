@@ -58,6 +58,13 @@ class Context
     @builder.position_at_end(block)
   end
   
+  def optimize!
+    @engine ||= engine
+    @fpm = LLVM::FunctionPassManager.new(@engine, @mod)
+    @fpm << 'mem2reg'
+    @mod.functions.each {|f| @fpm.run(f) }
+  end
+  
   def verify
     @mod.verify
   end
@@ -66,8 +73,12 @@ class Context
     @mod.dump
   end
   
+  def engine
+    LLVM::ExecutionEngine.create_jit_compiler(@mod)
+  end
+  
   def execute
-    @engine = LLVM::ExecutionEngine.create_jit_compiler(@mod)
+    @engine ||= engine
     @engine.run_function(@mod.functions['$main'])
   end
   
@@ -97,11 +108,12 @@ class Ast::Program
 
       # XXX:eo hack, last item must be a vardec, gives return value
       # stupid :)
-      ret = context.builder.load context[body.items.to_ary.last.name], "return"
+      ret = context.builder.load context[body.items.to_ary.last.symbol], "return"
       context.builder.ret ret
     end
 
     context.verify
+    context.optimize!
     context.dump
 
     value = context.execute
@@ -128,12 +140,16 @@ end
 
 class Ast::VarDec
   def gen(context)
-    puts "Ast::VarDec #{name} #{type}"
+    puts "Ast::VarDec #{symbol} #{type}"
     
     value = initializer.gen(context)
-    variable = context.builder.alloca(LLVM::Int32, name)
-    context[name] = variable
+    variable = context.builder.alloca(LLVM::Int32, symbol)
+    context[symbol] = variable
     context.builder.store(value, variable)
+  end
+  
+  def symbol
+    "#{name}_#{unique}"
   end
 end
 
@@ -351,7 +367,7 @@ class Ast::LvalExp
   def gen(context)
     puts "Ast::LvalExp #{lval}"
 
-    context.builder.load context[lval.name], context.next_temp
+    context.builder.load context[lval.symbol], context.next_temp
   end
 end
 
@@ -429,8 +445,12 @@ end
 
 class Ast::VarLvalue
   def gen(context)
-    puts "Ast::VarLvalue #{name}"
-    return context[name]
+    puts "Ast::VarLvalue #{symbol}"
+    return context[symbol]
+  end
+  
+  def symbol
+    "#{name}_#{unique}"
   end
 end
 
