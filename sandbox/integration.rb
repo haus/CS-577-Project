@@ -242,8 +242,14 @@ end
 class Ast::LoopSt
   def gen(context)
     puts "Ast::LoopSt"
+    body_block = context.new_block
+    exit_block = context.new_block
     
+    context.current_block = body_block
     body.gen(context)
+    context.builder.br(body_block)
+    
+    context.current_block = exit_block
   end
 end
 
