@@ -124,11 +124,11 @@ class Ast::Program
       context.builder.ret ret
     end
 
-    context.verify
-    context.optimize!
+#    context.verify
+#    context.optimize!
     context.dump
 
-    value = context.execute
+#    value = context.execute
 
     puts "Value: #{value.to_i}"
   end
@@ -323,7 +323,7 @@ class Ast::ExitSt
   def gen(context, exit_block, return_block)
     log "Ast::ExitSt"
     
-    #context.builder.br(exit_block)
+    context.builder.br(exit_block)
   end
 end
 
