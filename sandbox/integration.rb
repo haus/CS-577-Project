@@ -114,7 +114,7 @@ class Ast::Program
       return_block = context.new_block
       context.current_block = entry
       
-      body.gen(context, -1, return_block)
+      body.gen(context, nil, return_block)
       
       context.builder.br return_block
       context.current_block = return_block
@@ -325,8 +325,12 @@ end
 class Ast::ExitSt 
   def gen(context, exit_block, return_block)
     log "Ast::ExitSt"
-    
-    context.builder.br(exit_block)
+    if exit_block
+      exit_st = context.new_block
+      context.builder.br exit_st
+      context.current_block = exit_st
+      context.builder.br(exit_block)
+    end
   end
 end
 
