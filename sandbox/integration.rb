@@ -130,7 +130,7 @@ class Ast::Program
     context.dump
 
     value = context.execute
-
+    
     puts "Value: #{value.to_i}"
   end
 end
@@ -146,13 +146,17 @@ class Ast::Block
     log "Ast::Block"
         
     items.each do |item|
-      item.gen(context, exit_block, return_block)
+      if item.class.ancestors.include?(Ast::St)
+        item.gen(context, exit_block, return_block)
+      else
+        item.gen(context)
+      end
     end
   end
 end
 
 class Ast::VarDec
-  def gen(context, exit_block, return_block)
+  def gen(context)
     log "Ast::VarDec #{symbol} #{type}"
     
     value = initializer.gen(context)
@@ -167,7 +171,7 @@ class Ast::VarDec
 end
 
 class Ast::FuncDecs
-  def gen(context, exit_block, return_block)
+  def gen(context)
     decs.each do |dec|
       dec.gen(context)
     end
