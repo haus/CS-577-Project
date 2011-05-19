@@ -2,8 +2,10 @@
 	var a := 5;
 	loop {
 		a := 1;
-		exit;
-		a := 3
+		if (a = 5) then
+			exit;
+		a := 3;
+		exit
 	};
 	
 	var d := a
