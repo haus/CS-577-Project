@@ -274,10 +274,11 @@ class Ast::LoopSt
     body_block = context.new_block
     exit_block = context.new_block
     
-    context.builder.br body_block
+    context.builder.br(body_block)
     
     context.current_block = body_block
     body.gen(context, exit_block, return_block)
+
     context.builder.br(body_block)
     
     context.current_block = exit_block
@@ -325,12 +326,15 @@ end
 class Ast::ExitSt 
   def gen(context, exit_block, return_block)
     log "Ast::ExitSt"
+    
     if exit_block
       exit_st = context.new_block
-      context.builder.br exit_st
+      context.builder.br(exit_st)
       context.current_block = exit_st
       context.builder.br(exit_block)
+      context.current_block = context.new_block
     end
+    
   end
 end
 
