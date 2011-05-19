@@ -355,22 +355,7 @@ end
 class Ast::BinOpExp
   OPERATORS = ['<', '<=', '>', '>=', '=', '!=', '+', '-', '*', '/', 'div', 'mod', 'and', 'or']
   INSTRUCTIONS = [:slt, :sle, :sgt, :sge, :eq, :ne, :add, :sub, :mul, :fdiv, :sdiv, :srem, :and, :or]
-  # Builds an icmp Instruction. Compares lhs to rhs (Instructions)
-  # using the given symbol predicate (pred):
-  #   :eq  - equal to
-  #   :ne  - not equal to
-  #   :ugt - unsigned greater than
-  #   :uge - unsigned greater than or equal to
-  #   :ult - unsigned less than
-  #   :ule - unsigned less than or equal to
-  #   :sgt - signed greater than
-  #   :sge - signed greater than or equal to
-  #   :slt - signed less than
-  #   :sle - signed less than or equal to
-  # @LLVMinst icmp
-  # def icmp(pred, lhs, rhs, name = "")
-  #   Instruction.from_ptr(C.LLVMBuildICmp(self, pred, lhs, rhs, name))
-  # end
+
   def gen(context)
     log "Ast::BinOpExp #{OPERATORS[binOp]}"
     
