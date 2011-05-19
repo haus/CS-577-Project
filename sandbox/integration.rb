@@ -31,7 +31,7 @@ def log(str)
 end
 
 class Context
-  attr_accessor :builder
+  attr_accessor :builder, :printf
   
   def initialize(module_name)
     @mod = LLVM::Module.create("fabl")
@@ -40,6 +40,17 @@ class Context
     @builder = LLVM::Builder.create
     @temp_index = 0
     @symbols = {}
+    
+    init_read_write
+  end
+  
+  def init_read_write
+    @printf = @mod.functions.add("printf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
+  end
+  
+  def write_int(value)
+    @print_int = @builder.global_string_pointer("%d\n")
+    @builder.call @printf, @print_int, value
   end
 
   def next_temp
@@ -51,7 +62,7 @@ class Context
   def add_function(name, *args, &blk)
     @mod.functions.add(name, *args) do |f,*params|
       @current_function = f
-      yield f,*params
+      yield f,*params if blk
     end
   end
 
@@ -78,8 +89,17 @@ class Context
     @mod.verify
   end
   
-  def dump
+  def dump(file = nil)
+    save_stderr = $stderr
+    if file
+      $stderr = File.open(file, "w")
+    end
     @mod.dump
+    if file
+      $stderr.close
+    end
+  ensure
+    $stderr = save_stderr
   end
   
   def engine
@@ -127,11 +147,11 @@ class Ast::Program
 
     context.verify
     context.optimize!
-    context.dump
+    context.dump #('fabl.s')
 
     value = context.execute
     
-    puts "Value: #{value.to_i}"
+    log "Value: #{value.to_i}"
   end
 end
 
@@ -217,7 +237,8 @@ class Ast::WriteSt
   def gen(context, exit_block, return_block)
     log "Ast::WriteSt"
     exps.each do |exp|
-      exp.gen(context)
+      value = exp.gen(context)
+      context.write_int(value)
     end
   end
 end
@@ -307,14 +328,14 @@ class Ast::ForSt
     
     context.current_block = test_block
     
-    current = context.builder.send :load, context[loop_symbol], "loop_val"
+    current = context.builder.load context[loop_symbol], "loop_val"
     context.builder.cond(context.builder.icmp(:sle, current, loop_stop), 
       body_block, exit_block)
       
     context.current_block = body_block
     body.gen(context, exit_block, return_block)
     
-    result = context.builder.send :add, current, loop_step, "loop_temp"
+    result = context.builder.add current, loop_step, "loop_temp"
     context.builder.store(result, context[loop_symbol])
     
     context.builder.br(test_block)
