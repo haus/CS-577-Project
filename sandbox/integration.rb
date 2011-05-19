@@ -114,9 +114,9 @@ class Ast::Program
       return_block = context.new_block
       context.current_block = entry
       
-      body.gen(context, -1, return_block)
-      context.builder.br return_block
+      body.gen(context, nil, return_block)
       
+      context.builder.br return_block
       context.current_block = return_block
 
       # XXX:eo hack, last item must be a vardec, gives return value
@@ -274,10 +274,11 @@ class Ast::LoopSt
     body_block = context.new_block
     exit_block = context.new_block
     
-    context.builder.br body_block
+    context.builder.br(body_block)
     
     context.current_block = body_block
     body.gen(context, exit_block, return_block)
+
     context.builder.br(body_block)
     
     context.current_block = exit_block
@@ -326,7 +327,14 @@ class Ast::ExitSt
   def gen(context, exit_block, return_block)
     log "Ast::ExitSt"
     
-    context.builder.br(exit_block)
+    if exit_block
+      exit_st = context.new_block
+      context.builder.br(exit_st)
+      context.current_block = exit_st
+      context.builder.br(exit_block)
+      context.current_block = context.new_block
+    end
+    
   end
 end
 
@@ -347,22 +355,7 @@ end
 class Ast::BinOpExp
   OPERATORS = ['<', '<=', '>', '>=', '=', '!=', '+', '-', '*', '/', 'div', 'mod', 'and', 'or']
   INSTRUCTIONS = [:slt, :sle, :sgt, :sge, :eq, :ne, :add, :sub, :mul, :fdiv, :sdiv, :srem, :and, :or]
-  # Builds an icmp Instruction. Compares lhs to rhs (Instructions)
-  # using the given symbol predicate (pred):
-  #   :eq  - equal to
-  #   :ne  - not equal to
-  #   :ugt - unsigned greater than
-  #   :uge - unsigned greater than or equal to
-  #   :ult - unsigned less than
-  #   :ule - unsigned less than or equal to
-  #   :sgt - signed greater than
-  #   :sge - signed greater than or equal to
-  #   :slt - signed less than
-  #   :sle - signed less than or equal to
-  # @LLVMinst icmp
-  # def icmp(pred, lhs, rhs, name = "")
-  #   Instruction.from_ptr(C.LLVMBuildICmp(self, pred, lhs, rhs, name))
-  # end
+
   def gen(context)
     log "Ast::BinOpExp #{OPERATORS[binOp]}"
     
