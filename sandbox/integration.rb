@@ -31,7 +31,7 @@ def log(str)
 end
 
 class Context
-  attr_accessor :builder, :printf
+  attr_accessor :builder, :printf, :malloc
   
   def initialize(module_name)
     @mod = LLVM::Module.create("fabl")
@@ -41,11 +41,12 @@ class Context
     @temp_index = 0
     @symbols = {}
     
-    init_read_write
+    init_runtime
   end
   
-  def init_read_write
+  def init_runtime
     @printf = @mod.functions.add("printf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
+    @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int32], LLVM.Pointer(LLVM::Int8)))
   end
   
   def write_int(value)
@@ -118,6 +119,16 @@ class Context
   def []=(symbol, value)
     @symbols[symbol] = value
   end
+  
+  def llvm_type(type)
+    if Ast.is_boolean_type(type)
+      LLVM::Int8
+    elsif Ast.is_integer_type(type)
+      LLVM::Int32
+    else
+      LLVM::Pointer(LLVM::Int8)
+    end
+  end
 
 end
 
@@ -146,7 +157,7 @@ class Ast::Program
     end
 
     context.verify
-    context.optimize!
+    # context.optimize!
     context.dump #('fabl.s')
 
     value = context.execute
@@ -176,7 +187,7 @@ class Ast::VarDec
     log "Ast::VarDec #{symbol} #{type}"
     
     value = initializer.gen(context)
-    variable = context.builder.alloca(LLVM::Int32, symbol)
+    variable = context.builder.alloca(context.llvm_type(type), symbol)
     context[symbol] = variable
     context.builder.store(value, variable)
   end
@@ -234,6 +245,7 @@ class Ast::WriteSt
     log "Ast::WriteSt"
     exps.each do |exp|
       value = exp.gen(context)
+      puts exp.class.to_s
       context.write_int(value)
     end
   end
@@ -385,7 +397,7 @@ class Ast::BinOpExp
     if binOp >= 6
       context.builder.send INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
     else
-      context.builder.send :icmp, INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
+      context.builder.icmp INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
     end
   end
 end
@@ -407,7 +419,7 @@ class Ast::LvalExp
   def gen(context)
     log "Ast::LvalExp #{lval}"
 
-    context.builder.load context[lval.symbol], context.next_temp
+    context.builder.load lval.gen(context), context.next_temp
   end
 end
 
@@ -434,9 +446,87 @@ class Ast::ArrayExp
   def gen(context)
     log "Ast::ArrayExp #{type}"
     
-    initializers.each do |initializer|
-      initializer.gen(context)
+    vals = []
+    array_size = context.builder.alloca LLVM::Int32, "array_size"
+    context.builder.store LLVM::Int32.from_i(0), array_size
+    
+    counts = initializers.inject([]) do |cv, initializer|
+      count = initializer.count.gen(context)
+      
+      new_count = context.builder.alloca LLVM::Int32, "new_count"
+      context.builder.store count, new_count
+      
+      negative_count = context.new_block
+      continue = context.new_block
+      
+      context.builder.cond(
+        context.builder.icmp(:sge, count, LLVM::Int32.from_i(0)),
+        continue,
+        negative_count
+      )
+      
+      context.current_block = negative_count
+      context.builder.store LLVM::Int32.from_i(0), new_count
+      context.builder.br continue
+      
+      context.current_block = continue
+
+      current_size = context.builder.load array_size, "current_size"
+      increment = context.builder.load new_count, "increment"
+      new_size = context.builder.add current_size, increment, "new_size"
+      context.builder.store new_size, array_size
+      # vals << initializer.value.gen(context)
+      
+      cv << new_count
     end
+    
+    current_size = context.builder.load array_size, "current_size"
+    element_size = LLVM::Int32.from_i(4)
+    array_bytes = context.builder.mul current_size, element_size, "array_bytes"
+    count_size = LLVM::Int32.from_i(4)
+    total_bytes = context.builder.add array_bytes, count_size, "total_bytes"
+    
+    array_loc_tmp = context.builder.call context.malloc, total_bytes
+    array_loc = context.builder.alloca LLVM::Array(LLVM::Int32, 0), "array_loc"
+    # context.builder.store array_loc_tmp, array_loc
+    # context.builder.bit_cast array_loc_tmp, LLVM.Pointer(LLVM::Int32), "array_loc"
+    
+    ptr = context.builder.gep(array_loc, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(0)])
+    context.builder.store(current_size, ptr)
+    
+    array_index = context.builder.alloca LLVM::Int32, "array_index"
+    context.builder.store LLVM::Int32.from_i(1), array_index
+    
+    initializers.each_with_index do |initializer, i|
+      value = initializer.gen(context)
+      counter = context.builder.alloca LLVM::Int32, "counter"
+      context.builder.store LLVM::Int32.from_i(0), counter
+      
+      store_block = context.new_block
+      continue_block = context.new_block
+      
+      context.builder.cond(
+        context.builder.icmp(:sge, counts[i], counter),
+        continue_block,
+        store_block
+      )
+      
+      context.current_block = store_block
+      
+      current_index = context.builder.load array_index, "current_index"
+      ptr = context.builder.gep(array_loc, [LLVM::Int32.from_i(0), current_index])
+      context.builder.store(value, ptr)
+      new_index = context.builder.add current_index, LLVM::Int32.from_i(1), "new_index"
+      context.builder.store(new_index, array_index)
+      context.builder.br continue_block
+      
+      context.current_block = continue_block
+
+      count = counts[i]
+    end
+    
+    context.builder.load array_loc
+    # log counts.inspect
   end
 end
 
@@ -487,6 +577,20 @@ class Ast::VarLvalue
   def gen(context)
     log "Ast::VarLvalue #{symbol}"
     return context[symbol]
+  end
+  
+  def symbol
+    "#{name}_#{unique}"
+  end
+end
+
+class Ast::ArrayDerefLvalue
+  def gen(context)
+    log "Ast::ArrayDerefLvalue #{symbol}"
+    
+    array_base = context[symbol]
+    
+    # return context[symbol]
   end
   
   def symbol
