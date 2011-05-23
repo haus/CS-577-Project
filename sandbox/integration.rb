@@ -454,7 +454,7 @@ class Ast::ArrayExp
     array_size = context.builder.alloca LLVM::Int32, "array_size"
     context.builder.store LLVM::Int32.from_i(0), array_size
     
-    counts = initializers.inject([]) do |cs, initializer|
+    counts = initializers.map do |initializer|
       count = initializer.count.gen(context)
       
       new_count = context.builder.alloca LLVM::Int32, "new_count"
@@ -479,8 +479,8 @@ class Ast::ArrayExp
       increment = context.builder.load new_count, "increment"
       new_size = context.builder.add current_size, increment, "new_size"
       context.builder.store new_size, array_size
-
-      cs << new_count
+      
+      new_count
     end
     
     current_size = context.builder.load array_size, "current_size"
@@ -507,11 +507,18 @@ class Ast::ArrayExp
       counter = context.builder.alloca LLVM::Int32, "counter"
       context.builder.store LLVM::Int32.from_i(0), counter
       
+      test_block = context.new_block
       store_block = context.new_block
       continue_block = context.new_block
       
+      context.builder.br test_block
+      
+      context.current_block = test_block
+      
+      current_count = context.builder.load(counter)
+      
       context.builder.cond(
-        context.builder.icmp(:sge, counter, counts[i]),
+        context.builder.icmp(:sge, current_count, context.builder.load(counts[i])),
         continue_block,
         store_block
       )
@@ -521,13 +528,15 @@ class Ast::ArrayExp
       current_index = context.builder.load array_index, "current_index"
       ptr = context.builder.gep(array_base, [LLVM::Int32.from_i(0), current_index])
       context.builder.store(value, ptr)
+      
       new_index = context.builder.add current_index, LLVM::Int32.from_i(1), "new_index"
       context.builder.store(new_index, array_index)
-      context.builder.br continue_block
+      new_count = context.builder.add current_count, LLVM::Int32.from_i(1), "new_count"
+      context.builder.store(new_count, counter)
+      
+      context.builder.br test_block
       
       context.current_block = continue_block
-
-      count = counts[i]
     end
     
     context.builder.load array_loc
