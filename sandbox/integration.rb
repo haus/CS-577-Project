@@ -190,7 +190,7 @@ end
 
 class Ast::ArrayType
   def llvm_type(context)
-    LLVM::Array(elementType.llvm_type, 0)
+    LLVM::Array(elementType.llvm_type(context), 0)
   end
 end
 
