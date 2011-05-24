@@ -43,11 +43,21 @@ class Context
     @strings = {}
     
     init_runtime
+    init_types
   end
   
   def init_runtime
     @printf = @mod.functions.add("printf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
     @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int32], LLVM.Pointer(LLVM::Int8)))
+  end
+  
+  def init_types
+    @symbols["integer"] = LLVM::Int32
+    @symbols["boolean"] = LLVM::Int1
+  end
+  
+  def init_globals
+    
   end
   
   def write_int(value)
@@ -176,23 +186,30 @@ class Ast::Program
 end
 
 class Ast::NamedType
-  def llvm_type
-    case name
-    when "integer" then LLVM::Int32
-    when "boolean" then LLVM::Int1
-    end
+  def llvm_type(context)
+    return context[name]
   end
 end
 
 class Ast::ArrayType
-  def llvm_type
+  def llvm_type(context)
     LLVM::Array(elementType.llvm_type, 0)
   end
 end
 
 class Ast::RecordTypeDec
+  def llvm_type(context)
+    return context[name]
+  end
+  
   def gen(context)
     log "Ast::RecordTypeDec"
+    
+    elems = all_components.map do |i|
+      i.type.llvm_type(context)
+    end
+    
+    context[name] = LLVM::Type.struct(elems, false)
   end
 end
 
@@ -213,9 +230,8 @@ end
 class Ast::VarDec
   def gen(context)
     log "Ast::VarDec #{symbol} #{type}"
-    
     value = initializer.gen(context)
-    variable = context.builder.alloca(type.llvm_type, symbol)
+    variable = context.builder.alloca(type.llvm_type(context), symbol)
     context[symbol] = variable
     context.builder.store(value, variable)
   end
@@ -604,17 +620,23 @@ public Object visit(Ast.RecordExp e)  {
   def gen(context)
     log "Ast::RecordExp #{typeName}"
     recordSize = initializers.length
-    puts recordSize
     
-    puts "#{recordSize} elements in record"
-    
-    initializers.map do |i|
-      i.type.llvm_type
+    elems = initializers.map do |i|
+      i.type.llvm_type(context)
     end
+    
+    record_loc = context.builder.alloca LLVM::Pointer(LLVM::Type.struct(elems, false)), "record_loc"
+    
+    offset = context.builder.alloca LLVM::Int32, "offset"
     
     initializers.each do |initializer|
-      initializer.gen(context)
+      context.builder.store LLVM::Int32.from_i(initializer.offset), offset
+      value = initializer.gen(context)
+      ptr = context.builder.gep(record_loc, offset)
+      context.builder.store(value, ptr)
     end
+
+    return record_loc
   end
 end
 
