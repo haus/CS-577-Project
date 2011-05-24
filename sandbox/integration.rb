@@ -619,24 +619,28 @@ public Object visit(Ast.RecordExp e)  {
   
   def gen(context)
     log "Ast::RecordExp #{typeName}"
-    recordSize = initializers.length
     
     elems = initializers.map do |i|
       i.type.llvm_type(context)
     end
     
+    total_bytes = LLVM::Int32.from_i(1)
+    record_loc_tmp = context.builder.call context.malloc, total_bytes
     record_loc = context.builder.alloca LLVM::Pointer(LLVM::Type.struct(elems, false)), "record_loc"
-    
+    record_loc_tmp_bitcast = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM::Type.struct(elems, false)), "record_loc_tmp_bitcast"
+    context.builder.store record_loc_tmp_bitcast, record_loc
+    record_base = context.builder.load record_loc, "record_base"
     offset = context.builder.alloca LLVM::Int32, "offset"
     
     initializers.each do |initializer|
+      #puts "#{initializer.gen(context)} - #{initializer.offset}"
       context.builder.store LLVM::Int32.from_i(initializer.offset), offset
-      value = initializer.gen(context)
-      ptr = context.builder.gep(record_loc, offset)
+      value = initializer.value.gen(context)
+      ptr = context.builder.gep(record_base, offset)
       context.builder.store(value, ptr)
     end
 
-    return record_loc
+    context.builder.load record_base
   end
 end
 
