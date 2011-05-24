@@ -62,7 +62,7 @@ public class Ast {
     public String name;
     public String super_name; // can be null
     public IdType[] components;
-    IdType[] all_components = null;  // filled in by checker 
+    public IdType[] all_components = null;  // filled in by checker 
     public RecordTypeDec(int line, String name, String super_name, IdType[] components) {
       super(line); 
       this.name = name; this.super_name = super_name; this.components = components;
