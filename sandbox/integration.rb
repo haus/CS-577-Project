@@ -158,10 +158,7 @@ class Ast::Program
       context.builder.br return_block
       context.current_block = return_block
 
-      # XXX:eo hack, last item must be a vardec, gives return value
-      # stupid :)
-      ret = context.builder.load context[body.items.to_ary.last.symbol], "return"
-      context.builder.ret ret
+      context.builder.ret LLVM::Int32.from_i(0)
     end
 
     context.verify
@@ -275,9 +272,9 @@ class Ast::WriteSt
       value = exp.gen(context)
       
       case exp.type.name
-      when 'integer' then context.write_int(value)
-      when 'boolean' then context.write_bool(value)
-      when '?string' then context.write_string(value)
+        when 'integer' then context.write_int(value)
+        when 'boolean' then context.write_bool(value)
+        when '?string' then context.write_string(value)
       end
       
     end
@@ -467,71 +464,75 @@ class Ast::CallExp
 end
 
 class Ast::ArrayInit
-  def gen(context)
-    log "Ast::ArrayInit"
+  def gen_count(context, array_size)
+    cnt = count.gen(context)
+    
+    new_count = context.builder.alloca LLVM::Int32, "new_count"
+    context.builder.store cnt, new_count
+    
+    negative_count = context.new_block
+    continue = context.new_block
+    
+    context.builder.cond(
+      context.builder.icmp(:sge, cnt, LLVM::Int32.from_i(0)),
+      continue,
+      negative_count
+    )
+    
+    context.current_block = negative_count
+    context.builder.store LLVM::Int32.from_i(0), new_count
+    context.builder.br continue
+    
+    context.current_block = continue
 
-    count.gen(context)
-    value.gen(context)
+    current_size = context.builder.load array_size, "current_size"
+    increment = context.builder.load new_count, "increment"
+    new_size = context.builder.add current_size, increment, "new_size"
+    context.builder.store new_size, array_size
+
+    new_count
   end
 end
 
 class Ast::ArrayExp
-  def gen(context)
-    log "Ast::ArrayExp #{type}"
-    
-    vals = []
-    array_size = context.builder.alloca LLVM::Int32, "array_size"
-    context.builder.store LLVM::Int32.from_i(0), array_size
-    
-    counts = initializers.map do |initializer|
-      count = initializer.count.gen(context)
-      
-      new_count = context.builder.alloca LLVM::Int32, "new_count"
-      context.builder.store count, new_count
-      
-      negative_count = context.new_block
-      continue = context.new_block
-      
-      context.builder.cond(
-        context.builder.icmp(:sge, count, LLVM::Int32.from_i(0)),
-        continue,
-        negative_count
-      )
-      
-      context.current_block = negative_count
-      context.builder.store LLVM::Int32.from_i(0), new_count
-      context.builder.br continue
-      
-      context.current_block = continue
-
-      current_size = context.builder.load array_size, "current_size"
-      increment = context.builder.load new_count, "increment"
-      new_size = context.builder.add current_size, increment, "new_size"
-      context.builder.store new_size, array_size
-      
-      new_count
-    end
-    
-    current_size = context.builder.load array_size, "current_size"
+  
+  def size_in_bytes(context)
+    current_size = context.builder.load @array_size, "current_size"
     element_size = LLVM::Int32.from_i(4)
     array_bytes = context.builder.mul current_size, element_size, "array_bytes"
     count_size = LLVM::Int32.from_i(4)
-    total_bytes = context.builder.add array_bytes, count_size, "total_bytes"
-    
-    array_loc_tmp = context.builder.call context.malloc, total_bytes
-    array_loc = context.builder.alloca LLVM::Pointer(LLVM::Array(LLVM::Int32, 0)), "array_loc"
+    context.builder.add array_bytes, count_size, "total_bytes"
+  end
+  
+  def allocate(context)
+    array_loc_tmp = context.builder.call context.malloc, size_in_bytes(context)
     array_loc_tmp_bitcast = context.builder.bit_cast array_loc_tmp, LLVM::Pointer(LLVM::Array(LLVM::Int32, 0)), "array_loc_tmp_bitcast"
-    context.builder.store array_loc_tmp_bitcast, array_loc
+
+    @array_loc = context.builder.alloca LLVM::Pointer(LLVM::Array(LLVM::Int32, 0)), "array_loc"
+    context.builder.store array_loc_tmp_bitcast, @array_loc
+    @array_base = context.builder.load @array_loc, "array_base"
+  end
+  
+  def store_size(context)
+    ptr = context.builder.gep(@array_base, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(0)])
+    context.builder.store(context.builder.load(@array_size), ptr)
+  end
+  
+  def gen(context)
+    log "Ast::ArrayExp #{type}"
     
-    array_base = context.builder.load array_loc, "array_base"
-    ptr = context.builder.gep(array_base, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(0)])
-    context.builder.store(current_size, ptr)
+    @array_size = context.builder.alloca LLVM::Int32, "array_size"
+    context.builder.store LLVM::Int32.from_i(0), @array_size
+    
+    counts = initializers.map {|i| i.gen_count(context, @array_size) }
+    allocate(context)
+    
+    store_size(context)
     
     array_index = context.builder.alloca LLVM::Int32, "array_index"
     context.builder.store LLVM::Int32.from_i(1), array_index
     
     initializers.each_with_index do |initializer, i|
-      log "Initializer value: #{initializer.value}"
       value = initializer.value.gen(context)
       counter = context.builder.alloca LLVM::Int32, "counter"
       context.builder.store LLVM::Int32.from_i(0), counter
@@ -555,7 +556,7 @@ class Ast::ArrayExp
       context.current_block = store_block
       
       current_index = context.builder.load array_index, "current_index"
-      ptr = context.builder.gep(array_base, [LLVM::Int32.from_i(0), current_index])
+      ptr = context.builder.gep(@array_base, [LLVM::Int32.from_i(0), current_index])
       context.builder.store(value, ptr)
       
       new_index = context.builder.add current_index, LLVM::Int32.from_i(1), "new_index"
@@ -567,8 +568,9 @@ class Ast::ArrayExp
       
       context.current_block = continue_block
     end
-    
-    context.builder.load array_loc
+
+    @array_base
+    # context.builder.load array_loc
     # log counts.inspect
   end
 end
