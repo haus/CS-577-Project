@@ -569,6 +569,23 @@ class Ast::RecordInit
 end
 
 class Ast::RecordExp
+=begin
+  // First figure out how much space to allocate for the record.
+  int length = calc_byte_offset(e.typeDec, e.initializers.length-1) + IR.type_size[ir_type(e.typeDec.all_components[e.initializers.length-1].type)];
+
+  code.add(new IR.Mov(IR.INT, new IR.IntLit(length),new IR.Arg(0)));
+  code.add(new IR.Call(true,new IR.StringLit("alloc"),1,true));
+  IR.Operand t = new IR.Temp(nextTemp++);
+  code.add(new IR.Mov(IR.PTR,IR.RETREG,t));
+
+  // Now load the values into the appropriate spots...
+  for (Ast.RecordInit rec : e.initializers) {
+      code.add(new IR.Mov(ir_type(rec.type), gen(rec.value), new IR.Mem(t, new IR.IntLit(calc_byte_offset(e.typeDec, rec.offset)), 1)));
+  }
+
+  return t;
+=end
+  
   def gen(context)
     log "Ast::RecordExp #{typeName} #{typeDec}"
     
@@ -632,6 +649,17 @@ class Ast::RecordDerefLvalue
   end
   
   def type_signature
+=begin
+public Object visit(Ast.RecordDerefLvalue l) {
+    IR.Operand addr = tempify(IR.PTR,gen(l.record));
+    int l1 = nextLabel++;
+    code.add(new IR.Cmp(IR.PTR,addr,IR.NIL));
+    code.add(new IR.Jump(IR.NE,l1));
+    code.add(new IR.Call(true,new IR.StringLit("nil_pointer"),0,false));
+    code.add(new IR.LabelDec(l1));
+    return new IR.Mem(addr,new IR.IntLit(calc_byte_offset(l.typeDec,l.offset)),1);
+}
+=end
   end
 end
 
