@@ -40,6 +40,7 @@ class Context
     @builder = LLVM::Builder.create
     @temp_index = 0
     @symbols = {}
+    @strings = {}
     
     init_runtime
   end
@@ -50,8 +51,15 @@ class Context
   end
   
   def write_int(value)
-    @print_int ||= @builder.global_string_pointer("%d\n")
-    @builder.call @printf, @print_int, value
+    @builder.call @printf, strings("%d\n", "int_format_string"), value
+  end
+  
+  def write_string(value)
+    @builder.call @printf, strings("%s\n", "int_format_string"), value
+  end
+  
+  def strings(str, name = '')
+    @strings[str] ||= @builder.global_string_pointer(str, name)
   end
 
   def next_temp
@@ -265,8 +273,13 @@ class Ast::WriteSt
     log "Ast::WriteSt"
     exps.each do |exp|
       value = exp.gen(context)
-      puts exp.class.to_s
-      context.write_int(value)
+      
+      case exp.type.name
+      when 'integer' then context.write_int(value)
+      when 'boolean' then context.write_bool(value)
+      when '?string' then context.write_string(value)
+      end
+      
     end
   end
 end
@@ -611,6 +624,7 @@ end
 class Ast::StringLitExp
   def gen(context)
     log "Ast::StringLitExp #{lit}"
+    context.strings(lit)
   end
 end
 

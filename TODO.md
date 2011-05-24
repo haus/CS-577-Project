@@ -1,9 +1,9 @@
 Eric
 ----
 
-- StringLits
+- ✔ StringLits
 	+ ✔ don't emit WriteInt string each time WriteInt is called
-	- create hash of already seen strings á là citrus
+	+ ✔ create hash of already seen strings á là citrus
 - Refactor array mess
 	- pull logic into ArrayInit, and call from Array Exp
 	- also, boundschecking
