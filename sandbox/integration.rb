@@ -545,6 +545,7 @@ end
 
 class Ast::RecordExp
 =begin
+public Object visit(Ast.RecordExp e)  {
   // First figure out how much space to allocate for the record.
   int length = calc_byte_offset(e.typeDec, e.initializers.length-1) + IR.type_size[ir_type(e.typeDec.all_components[e.initializers.length-1].type)];
 
@@ -559,10 +560,18 @@ class Ast::RecordExp
   }
 
   return t;
+}
 =end
   
   def gen(context)
     log "Ast::RecordExp #{typeName}"
+    recordSize = initializers.length
+    puts recordSize
+    
+    puts "#{recordSize} elements in record"
+    
+    initializers.map do |i|
+      i.type.llvm_type
     
     initializers.each do |initializer|
       initializer.gen(context)
