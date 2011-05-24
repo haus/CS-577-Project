@@ -1,8 +1,9 @@
-[* record test { a : integer };
+record test { a : integer };
+record test2 extends test { b : integer };
 {
-	var foo : test := test { a := 3 };
+	var foo : test2 := test2 { a := 3, b := 4 };
 	write("foo.a : ", foo.a)
-} *]
+}  [*
 record test { a : integer, b : boolean, c : test };
 {
 	var foo : test := nil;
@@ -11,4 +12,4 @@ record test { a : integer, b : boolean, c : test };
 	var baz := test{a := 4, b := false, c := bar };
 	write("baz.c.a : ", baz.c.a);
 	write("foo.a : ", foo.a)
-}
+} *]

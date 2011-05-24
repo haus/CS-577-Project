@@ -40,6 +40,7 @@ class Context
     @builder = LLVM::Builder.create
     @temp_index = 0
     @symbols = {}
+    @strings = {}
     
     init_runtime
   end
@@ -50,8 +51,15 @@ class Context
   end
   
   def write_int(value)
-    @print_int = @builder.global_string_pointer("%d\n")
-    @builder.call @printf, @print_int, value
+    @builder.call @printf, strings("%d\n", "int_format_string"), value
+  end
+  
+  def write_string(value)
+    @builder.call @printf, strings("%s\n", "int_format_string"), value
+  end
+  
+  def strings(str, name = '')
+    @strings[str] ||= @builder.global_string_pointer(str, name)
   end
 
   def next_temp
@@ -122,7 +130,7 @@ class Context
   
   def llvm_type(type)
     if Ast.is_boolean_type(type)
-      LLVM::Int8
+      LLVM::Int1
     elsif Ast.is_integer_type(type)
       LLVM::Int32
     else
@@ -164,6 +172,22 @@ class Ast::Program
     
     log "Value: #{value.to_i}"
   end
+  
+end
+
+class Ast::NamedType
+  def llvm_type
+    case name
+    when "integer" then LLVM::Int32
+    when "boolean" then LLVM::Int1
+    end
+  end
+end
+
+class Ast::ArrayType
+  def llvm_type
+    LLVM::Array(elementType.llvm_type, 0)
+  end
 end
 
 class Ast::RecordTypeDec
@@ -191,7 +215,7 @@ class Ast::VarDec
     log "Ast::VarDec #{symbol} #{type}"
     
     value = initializer.gen(context)
-    variable = context.builder.alloca(context.llvm_type(type), symbol)
+    variable = context.builder.alloca(type.llvm_type, symbol)
     context[symbol] = variable
     context.builder.store(value, variable)
   end
@@ -249,8 +273,13 @@ class Ast::WriteSt
     log "Ast::WriteSt"
     exps.each do |exp|
       value = exp.gen(context)
-      puts exp.class.to_s
-      context.write_int(value)
+      
+      case exp.type.name
+      when 'integer' then context.write_int(value)
+      when 'boolean' then context.write_bool(value)
+      when '?string' then context.write_string(value)
+      end
+      
     end
   end
 end
@@ -454,7 +483,7 @@ class Ast::ArrayExp
     array_size = context.builder.alloca LLVM::Int32, "array_size"
     context.builder.store LLVM::Int32.from_i(0), array_size
     
-    counts = initializers.inject([]) do |cs, initializer|
+    counts = initializers.map do |initializer|
       count = initializer.count.gen(context)
       
       new_count = context.builder.alloca LLVM::Int32, "new_count"
@@ -479,8 +508,8 @@ class Ast::ArrayExp
       increment = context.builder.load new_count, "increment"
       new_size = context.builder.add current_size, increment, "new_size"
       context.builder.store new_size, array_size
-
-      cs << new_count
+      
+      new_count
     end
     
     current_size = context.builder.load array_size, "current_size"
@@ -507,11 +536,18 @@ class Ast::ArrayExp
       counter = context.builder.alloca LLVM::Int32, "counter"
       context.builder.store LLVM::Int32.from_i(0), counter
       
+      test_block = context.new_block
       store_block = context.new_block
       continue_block = context.new_block
       
+      context.builder.br test_block
+      
+      context.current_block = test_block
+      
+      current_count = context.builder.load(counter)
+      
       context.builder.cond(
-        context.builder.icmp(:sge, counter, counts[i]),
+        context.builder.icmp(:sge, current_count, context.builder.load(counts[i])),
         continue_block,
         store_block
       )
@@ -521,13 +557,15 @@ class Ast::ArrayExp
       current_index = context.builder.load array_index, "current_index"
       ptr = context.builder.gep(array_base, [LLVM::Int32.from_i(0), current_index])
       context.builder.store(value, ptr)
+      
       new_index = context.builder.add current_index, LLVM::Int32.from_i(1), "new_index"
       context.builder.store(new_index, array_index)
-      context.builder.br continue_block
+      new_count = context.builder.add current_count, LLVM::Int32.from_i(1), "new_count"
+      context.builder.store(new_count, counter)
+      
+      context.builder.br test_block
       
       context.current_block = continue_block
-
-      count = counts[i]
     end
     
     context.builder.load array_loc
@@ -572,6 +610,7 @@ public Object visit(Ast.RecordExp e)  {
     
     initializers.map do |i|
       i.type.llvm_type
+    end
     
     initializers.each do |initializer|
       initializer.gen(context)
@@ -595,6 +634,7 @@ end
 class Ast::StringLitExp
   def gen(context)
     log "Ast::StringLitExp #{lit}"
+    context.strings(lit)
   end
 end
 
@@ -629,6 +669,10 @@ class Ast::ArrayDerefLvalue
 end
 
 class Ast::RecordDerefLvalue
+  def gen(context)
+  end
+  
+  def type_signature
 =begin
 public Object visit(Ast.RecordDerefLvalue l) {
     IR.Operand addr = tempify(IR.PTR,gen(l.record));
@@ -640,8 +684,6 @@ public Object visit(Ast.RecordDerefLvalue l) {
     return new IR.Mem(addr,new IR.IntLit(calc_byte_offset(l.typeDec,l.offset)),1);
 }
 =end
-  def gen(context)
-    
   end
 end
 
