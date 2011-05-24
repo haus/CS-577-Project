@@ -50,7 +50,7 @@ class Context
   end
   
   def write_int(value)
-    @print_int = @builder.global_string_pointer("%d\n")
+    @print_int ||= @builder.global_string_pointer("%d\n")
     @builder.call @printf, @print_int, value
   end
 
@@ -122,7 +122,7 @@ class Context
   
   def llvm_type(type)
     if Ast.is_boolean_type(type)
-      LLVM::Int8
+      LLVM::Int1
     elsif Ast.is_integer_type(type)
       LLVM::Int32
     else
@@ -164,6 +164,22 @@ class Ast::Program
     
     log "Value: #{value.to_i}"
   end
+  
+end
+
+class Ast::NamedType
+  def llvm_type
+    case name
+    when "integer" then LLVM::Int32
+    when "boolean" then LLVM::Int1
+    end
+  end
+end
+
+class Ast::ArrayType
+  def llvm_type
+    LLVM::Array(elementType.llvm_type, 0)
+  end
 end
 
 class Ast::RecordTypeDec
@@ -191,7 +207,7 @@ class Ast::VarDec
     log "Ast::VarDec #{symbol} #{type}"
     
     value = initializer.gen(context)
-    variable = context.builder.alloca(context.llvm_type(type), symbol)
+    variable = context.builder.alloca(type.llvm_type, symbol)
     context[symbol] = variable
     context.builder.store(value, variable)
   end
@@ -554,7 +570,7 @@ end
 
 class Ast::RecordExp
   def gen(context)
-    log "Ast::RecordExp #{typeName}"
+    log "Ast::RecordExp #{typeName} #{typeDec}"
     
     initializers.each do |initializer|
       initializer.gen(context)
@@ -608,6 +624,14 @@ class Ast::ArrayDerefLvalue
     array_base = context.builder.load array_loc, "array_base"
     actual_index = context.builder.add LLVM::Int32.from_i(1), array_index
     element_ptr = context.builder.gep array_base, [LLVM::Int32.from_i(0), actual_index]
+  end
+end
+
+class Ast::RecordDerefLvalue
+  def gen(context)
+  end
+  
+  def type_signature
   end
 end
 
