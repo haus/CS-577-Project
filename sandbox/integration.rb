@@ -44,12 +44,57 @@ class Context
     
     init_runtime
     init_types
+    init_globals
   end
   
   def init_runtime
     @printf = @mod.functions.add("printf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
     @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int32], LLVM.Pointer(LLVM::Int8)))
     @exit = @mod.functions.add("exit", LLVM.Function([LLVM::Int32], LLVM.Void))
+    
+    @write_int = add_function("_write_int", LLVM.Function([LLVM::Int32], LLVM.Void)) do |write_int, int|
+      self.current_block = new_block
+      
+      int_format_string = strings("%d\n", "int_format_string")
+      @builder.call @printf, int_format_string, int
+
+      @builder.ret_void
+    end
+    
+    @write_string = add_function("_write_string", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM.Void)) do |write_string, string|
+      self.current_block = new_block
+
+      string_format_string = strings("%s\n", "string_format_string")
+      @builder.call @printf, string_format_string, string
+
+      @builder.ret_void
+    end
+
+    @write_bool = add_function("_write_bool", LLVM.Function([LLVM::Int1], LLVM.Void)) do |write_bool, bool|
+      self.current_block = new_block
+
+      true_block = new_block
+      false_block = new_block
+      return_block = new_block
+
+      @builder.cond(bool,
+        true_block,
+        false_block
+      )
+
+      self.current_block = true_block
+      true_string = strings("true", "true_string")
+      @builder.call(@write_string, true_string)
+      @builder.br return_block
+
+      self.current_block = false_block
+      false_string = strings("false", "false_string")
+      @builder.call(@write_string, false_string)
+      @builder.br return_block
+
+      self.current_block = return_block
+      @builder.ret_void
+    end
   end
   
   def init_types
@@ -61,13 +106,17 @@ class Context
     @symbols["true"] = LLVM::Int1.from_i(1)
     @symbols["false"] = LLVM::Int1.from_i(0)
   end
-  
-  def write_int(value)
-    @builder.call @printf, strings("%d\n", "int_format_string"), value
+
+  def write_bool(bool)
+    @builder.call @write_bool, bool
   end
   
-  def write_string(value)
-    @builder.call @printf, strings("%s\n", "string_format_string"), value
+  def write_int(int)
+    @builder.call @write_int, int
+  end
+  
+  def write_string(context, string)
+    @builder.call @write_string, string
   end
   
   def exit(value)
@@ -181,9 +230,7 @@ class Ast::Program
     context.optimize!
     context.dump('fabl.s')
 
-    value = context.execute
-    
-    log "Value: #{value.to_i}"
+    context.execute
   end
   
 end
@@ -468,8 +515,14 @@ class Ast::UnOpExp
 end
 
 class Ast::LvalExp
+  SPECIAL_VALUES = ["true", "false", "nil"]
+  
   def gen(context)
     log "Ast::LvalExp #{lval}"
+
+    if lval.is_a? Ast::VarLvalue
+      SPECIAL_VALUES.include?(lval.name) and return context[lval.name]
+    end
 
     context.builder.load lval.gen(context), context.next_temp
   end
@@ -682,15 +735,9 @@ class Ast::StringLitExp
   end
 end
 
-class Ast::BlockItem
-  def gen(context)
-    log "Ast::BlockItem #{self.class}"
-  end
-end
-
 class Ast::VarLvalue
   def gen(context)
-    log "Ast::VarLvalue #{symbol}"
+    log "Ast::VarLvalue #{symbol} #{context[symbol]}"
     return context[symbol]
   end
   
