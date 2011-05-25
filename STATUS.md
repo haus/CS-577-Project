@@ -1,4 +1,6 @@
-# Status Report
+# FĀBL Status Report
+
+Matthaus Litteken & Eric O'Connell
 
 At this point, we have successfully implemented a substantial subset of FAB on the LLVM. We have chosen to take the existing Java frontend code as a basis, but rather than develop the IR generation in Java we are using JRuby to access the fully type-checked AST. This enables us to use a fairly high-level LLVM API library written in Ruby, using its FFI support.
 
