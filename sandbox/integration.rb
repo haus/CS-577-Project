@@ -244,7 +244,7 @@ end
 
 class Ast::ArrayType
   def llvm_type(context)
-    LLVM::Array(elementType.llvm_type(context), 0)
+    LLVM::Pointer(LLVM::Array(elementType.llvm_type(context), 0))
   end
 end
 
@@ -744,8 +744,7 @@ class Ast::ArrayDerefLvalue
     log "Ast::ArrayDerefLvalue"
     
     array_index = index.gen(context)
-    array_loc_tmp = array.gen(context)
-    array_loc = context.builder.bit_cast array_loc_tmp, LLVM::Pointer(LLVM::Pointer(LLVM::Array(LLVM::Int32, 0))), "array_loc"
+    array_loc = array.gen(context)
     array_base = context.builder.load array_loc, "array_base"
     
     boundscheck(context, array_base, array_index)
