@@ -116,7 +116,7 @@ class Context
     @builder.call @write_int, int
   end
   
-  def write_string(context, string)
+  def write_string(string)
     @builder.call @write_string, string
   end
   
@@ -768,7 +768,7 @@ class Ast::ArrayDerefLvalue
     )
     
     context.current_block = error_block
-    context.write_string(context, context.strings("Invalid array index!"))
+    context.write_string(context.strings("Invalid array index!"))
     context.exit(-1)
     context.builder.br okay_block
     
