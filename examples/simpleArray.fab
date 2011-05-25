@@ -1,0 +1,5 @@
+{
+	var a := @integer{3 of 5};
+	
+	var b := a[2]
+}
