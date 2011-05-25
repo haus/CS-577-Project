@@ -28,6 +28,7 @@ Nearly all expressions except for CallExp and RecordExp are working, similarly a
 	- Ast::ArrayExp
 	- Ast::IntLitExp
 	- Ast::RealLitExp
+	- Ast::RecordExp
  	- Ast::StringLitExp
 - Initializers
 	- Ast::ArrayInit
@@ -50,14 +51,21 @@ The two big things on our list is to tackle record initialization/derferencing a
 	- Ast::ReturnSt
 - Expressions
 	- Ast::CallExp
-	- Ast::RecordExp
-- Initializers
-	- Ast::RecordInit
 - Lvalues
 	- Ast::RecordDerefLvalue
 
 ### Qualitative / Quanitative Analysis
 
 We have been formulating opinions about our experience using LLVM, as well as the particular tools we have been using, but need to collect and organize these thoughts into a cohesive discussion of the tradeoffs. Additionally, we need to design and run some benchmark testing to compare the LLVM interpereter and compiler to the reference interpreter and compiler from the 322 course.
+
+## Differences From Proposal
+
+### Optimizations
+
+We won't be doing any of the optimizations we talked about in our proposal, mostly because LLVM has some pretty excellent optimizations built in already. So for our benchmarks we will likely be comparing unoptimized LLVM to optimized LLVM (perhaps with some partially optimized LLVM in there also) to the reference material.
+
+### Layers
+
+Also differing from our proposal, there is no intermediate layer between the AST and LLVM IR, as we quickly discovered it wasn't needed and would unnecessarily complicate matters. However, if we were to take on any FAB specific optimizations, an intermediate layer would be helpful in that process.
 
 At the moment we do not anticipate tackling reals, though it is very tempting.
