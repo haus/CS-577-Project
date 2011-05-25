@@ -23,6 +23,7 @@ Nearly all expressions except for CallExp and RecordExp are working, similarly a
 	- Ast::ForSt
 	- Ast::ExitSt
 	- Ast::BlockSt
+	- Ast::ReadSt
 - Expressions
 	- Ast::BinOpExp
 	- Ast::UnOpExp
@@ -37,6 +38,7 @@ Nearly all expressions except for CallExp and RecordExp are working, similarly a
 - Lvalues
 	- Ast::VarLvalue
 	- Ast::ArrayDerefLvalue
+	- Ast::RecordDerefLvalue
 
 ## What's left to do
 
@@ -49,12 +51,10 @@ The two big things on our list is to tackle record initialization/derferencing a
 	- Ast::FuncDec
 - Statements
 	- Ast::CallSt
-	- Ast::ReadSt
 	- Ast::ReturnSt
 - Expressions
 	- Ast::CallExp
-- Lvalues
-	- Ast::RecordDerefLvalue
+
 
 ### Qualitative / Quanitative Analysis
 
