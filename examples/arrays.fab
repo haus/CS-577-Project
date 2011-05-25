@@ -5,7 +5,7 @@
 	for b := 0 to 11 do {
 		write(a[b])
 	};
-	var c:= a[11]
+	var c:= a[-1]
 
 	[* write(a[9]); *]
 	
