@@ -3,7 +3,7 @@ record red extends blue { c: integer };
 {
 var yellow:= blue{a := 5, b:=6};
 var green := red{a:=1, b:=3, c:=4};
-[*write(green.a)*]
+write(green.a);
 
 var a := 2
 }
