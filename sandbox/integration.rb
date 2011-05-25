@@ -49,6 +49,7 @@ class Context
   def init_runtime
     @printf = @mod.functions.add("printf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
     @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int32], LLVM.Pointer(LLVM::Int8)))
+    @exit = @mod.functions.add("exit", LLVM.Function([LLVM::Int32], LLVM.Void))
   end
   
   def init_types
@@ -57,7 +58,8 @@ class Context
   end
   
   def init_globals
-    
+    @symbols["true"] = LLVM::Int1.from_i(1)
+    @symbols["false"] = LLVM::Int1.from_i(0)
   end
   
   def write_int(value)
@@ -65,7 +67,11 @@ class Context
   end
   
   def write_string(value)
-    @builder.call @printf, strings("%s\n", "int_format_string"), value
+    @builder.call @printf, strings("%s\n", "string_format_string"), value
+  end
+  
+  def exit(value)
+    @builder.call @exit, LLVM::Int32.from_i(value)
   end
   
   def strings(str, name = '')
@@ -701,8 +707,33 @@ class Ast::ArrayDerefLvalue
     array_loc_tmp = array.gen(context)
     array_loc = context.builder.bit_cast array_loc_tmp, LLVM::Pointer(LLVM::Pointer(LLVM::Array(LLVM::Int32, 0))), "array_loc"
     array_base = context.builder.load array_loc, "array_base"
+    
+    boundscheck(context, array_base, array_index)
+    
     actual_index = context.builder.add LLVM::Int32.from_i(1), array_index
     element_ptr = context.builder.gep array_base, [LLVM::Int32.from_i(0), actual_index]
+  end
+  
+  def boundscheck(context, array_base, array_index)
+    error_block = context.new_block
+    okay_block = context.new_block
+    
+    array_size_ptr = context.builder.gep array_base, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(0)]
+    array_size = context.builder.load array_size_ptr
+
+    # using unsigned trick!
+    context.builder.cond(
+      context.builder.icmp(:ult, array_index, array_size),
+      okay_block,
+      error_block
+    )
+    
+    context.current_block = error_block
+    context.write_string(context.strings("Invalid array index!"))
+    context.exit(-1)
+    context.builder.br okay_block
+    
+    context.current_block = okay_block
   end
 end
 
