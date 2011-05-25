@@ -618,31 +618,49 @@ public Object visit(Ast.RecordExp e)  {
   return t;
 }
 =end
+  def size_in_bytes(context)
+    element_size = LLVM::Int32.from_i(4)
+    record_elements = LLVM::Int32.from_i(initializers.length)
+    record_bytes = context.builder.mul record_elements, element_size, "record_bytes"
+  end
+
+  def allocate(context)
+    record_loc_tmp = context.builder.call context.malloc, size_in_bytes(context)
+    record_loc_tmp_bitcast = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM::Type.struct(@elems, false)), "record_loc_tmp_bitcast"
+
+    @record_loc = context.builder.alloca LLVM::Pointer(LLVM::Type.struct(@elems, false)), "record_loc"
+    context.builder.store record_loc_tmp_bitcast, @record_loc
+    @record_base = context.builder.load @record_loc, "record_base"
+  end
   
   def gen(context)
     log "Ast::RecordExp #{typeName}"
+    size = initializers.length
     
-    elems = initializers.map do |i|
+    @elems = initializers.map do |i|
       i.type.llvm_type(context)
     end
     
-    total_bytes = LLVM::Int32.from_i(1)
-    record_loc_tmp = context.builder.call context.malloc, total_bytes
-    record_loc = context.builder.alloca LLVM::Pointer(LLVM::Type.struct(elems, false)), "record_loc"
-    record_loc_tmp_bitcast = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM::Type.struct(elems, false)), "record_loc_tmp_bitcast"
-    context.builder.store record_loc_tmp_bitcast, record_loc
-    record_base = context.builder.load record_loc, "record_base"
+#    puts 
+    
+#    total_bytes = LLVM::Int32.from_i(1)
+#    record_loc_tmp = context.builder.call context.malloc, total_bytes
+#    record_loc = context.builder.alloca LLVM::Pointer(LLVM::Type.struct(elems, false)), "record_loc"
+#    record_loc_tmp_bitcast = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM::Type.struct(elems, false)), "record_loc_tmp_bitcast"
+#    context.builder.store record_loc_tmp_bitcast, record_loc
+#    record_base = context.builder.load record_loc, "record_base"
+    allocate(context)
+    
     offset = context.builder.alloca LLVM::Int32, "offset"
     
     initializers.each do |initializer|
-      #puts "#{initializer.gen(context)} - #{initializer.offset}"
       context.builder.store LLVM::Int32.from_i(initializer.offset), offset
       value = initializer.value.gen(context)
-      ptr = context.builder.gep(record_base, offset)
+      ptr = context.builder.gep(@record_base, offset)
       context.builder.store(value, ptr)
     end
 
-    context.builder.load record_base
+    @record_base
   end
 end
 
