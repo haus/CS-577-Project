@@ -183,7 +183,7 @@ class Context
   
   def execute
     @engine ||= engine
-    @engine.run_function(@mod.functions['$main'])
+    @engine.run_function(@mod.functions['main'])
   end
   
   def [](symbol)
@@ -214,7 +214,7 @@ class Ast::Program
       rtype.gen(context)
     end
     
-    context.add_function("$main", [], LLVM::Int32) do |main,|
+    context.add_function("main", [], LLVM::Int32) do |main,|
       entry = context.new_block
       return_block = context.new_block
       context.current_block = entry
@@ -228,7 +228,7 @@ class Ast::Program
     end
 
     context.verify
-    #context.optimize!
+    context.optimize!
     context.dump('fabl.s')
 
     context.execute
@@ -665,14 +665,6 @@ class Ast::ArrayExp
   end
 end
 
-class Ast::RecordInit
-  def gen(context)
-    log "Ast::RecordInit #{name} #{offset}"
-    
-    value.gen(context)
-  end
-end
-
 class Ast::RecordExp
   def size_in_bytes(context)
     element_size = LLVM::Int32.from_i(4)
@@ -782,10 +774,10 @@ class Ast::RecordDerefLvalue
     log "Ast::RecordDerefLvalue"
     
     record_loc_tmp = record.gen(context)
-    record_loc = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(context[typeDec.name]), "record_loc"
+    record_loc = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM::Pointer(context[typeDec.name])), "record_loc"
     record_base = context.builder.load record_loc, "record_base"
     
-    #record_element_ptr = context.builder.gep record_base, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(offset)]
+    record_element_ptr = context.builder.gep record_base, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(offset)]
     
   end
 end
