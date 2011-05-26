@@ -1,0 +1,6 @@
+{
+	var a:integer := 0;
+	write("Please type an integer:");
+	read(a);
+	write("You typed this integer: ", a)
+}

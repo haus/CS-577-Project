@@ -31,7 +31,7 @@ def log(str)
 end
 
 class Context
-  attr_accessor :builder, :printf, :malloc
+  attr_accessor :builder, :printf, :malloc, :scanf
   
   def functions
     @mod.functions
@@ -55,8 +55,20 @@ class Context
   
   def init_runtime
     @printf = @mod.functions.add("printf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
+    @scanf = @mod.functions.add("scanf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
     @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int32], LLVM.Pointer(LLVM::Int8)))
     @exit = @mod.functions.add("exit", LLVM.Function([LLVM::Int32], LLVM.Void))
+
+    @read_int = add_fn("_read_int", LLVM.Function([LLVM.Pointer(LLVM::Int32)], LLVM.Void)) do |read_int, int|
+      self.current_block = new_block
+      int_store = @builder.alloca LLVM::Int32, "int_store"
+      int_format_string = strings("%d", "int_format_string")
+      @builder.call @scanf, int_format_string, int_store
+      int_return = @builder.load int_store, "int_return"
+      @builder.store int_return, int
+
+      @builder.ret_void
+    end
     
     @write_int = add_fn("_write_int", LLVM.Function([LLVM::Int32], LLVM.Void)) do |write_int, int|
       self.current_block = new_block
@@ -115,6 +127,10 @@ class Context
     @symbols["nil"] = LLVM::Int8.from_i(0)
   end
 
+  def read_int(int)
+    @builder.call @read_int, int
+  end
+  
   def write_bool(bool)
     @builder.call @write_bool, bool
   end
@@ -267,7 +283,7 @@ class Ast::Program
     end
 
     fns = context.gen_fns
-    # context.dump
+
     context.add_fn("main", [], LLVM::Int32) do |main,|
       entry_block = context.new_block
       context.current_block = entry_block
@@ -414,7 +430,11 @@ class Ast::ReadSt
     log "Ast::ReadSt"
     
     targets.each do |target|
-      target.gen(context)
+      value = target.gen(context)
+      
+      case target.type.name
+        when 'integer' then context.read_int(value)
+      end
     end
   end
 end
@@ -558,6 +578,10 @@ end
 class Ast::ReturnSt
   def gen(context, exit_block, return_block)
     log "Ast::ReturnSt #{returnValue}"
+    if (returnValue != nil)
+      return_val = returnValue.gen(context)
+      return_type = returnValue.type.gen(context)
+    end
   end
 end
 
