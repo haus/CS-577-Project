@@ -33,6 +33,10 @@ end
 class Context
   attr_accessor :builder, :printf, :malloc
   
+  def functions
+    @mod.functions
+  end
+  
   def initialize(module_name)
     @mod = LLVM::Module.create("fabl")
     @current_function = nil
@@ -41,6 +45,8 @@ class Context
     @temp_index = 0
     @symbols = {}
     @strings = {}
+    @globals = {}
+    @fns_to_generate = []
     
     init_runtime
     init_types
@@ -52,7 +58,7 @@ class Context
     @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int32], LLVM.Pointer(LLVM::Int8)))
     @exit = @mod.functions.add("exit", LLVM.Function([LLVM::Int32], LLVM.Void))
     
-    @write_int = add_function("_write_int", LLVM.Function([LLVM::Int32], LLVM.Void)) do |write_int, int|
+    @write_int = add_fn("_write_int", LLVM.Function([LLVM::Int32], LLVM.Void)) do |write_int, int|
       self.current_block = new_block
       
       int_format_string = strings("%d\n", "int_format_string")
@@ -61,7 +67,7 @@ class Context
       @builder.ret_void
     end
     
-    @write_string = add_function("_write_string", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM.Void)) do |write_string, string|
+    @write_string = add_fn("_write_string", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM.Void)) do |write_string, string|
       self.current_block = new_block
 
       string_format_string = strings("%s\n", "string_format_string")
@@ -70,7 +76,7 @@ class Context
       @builder.ret_void
     end
 
-    @write_bool = add_function("_write_bool", LLVM.Function([LLVM::Int1], LLVM.Void)) do |write_bool, bool|
+    @write_bool = add_fn("_write_bool", LLVM.Function([LLVM::Int1], LLVM.Void)) do |write_bool, bool|
       self.current_block = new_block
 
       true_block = new_block
@@ -100,6 +106,7 @@ class Context
   def init_types
     @symbols["integer"] = LLVM::Int32
     @symbols["boolean"] = LLVM::Int1
+    @symbols["unit"] = LLVM.Void
   end
   
   def init_globals
@@ -127,6 +134,17 @@ class Context
   def strings(str, name = '')
     @strings[str] ||= @builder.global_string_pointer(str, name)
   end
+  
+  def globals(name, type, value = nil)
+    @globals[name] ||= @mod.globals.add(type, name)
+
+    if value
+      @globals[name].initializer = value if value
+      @globals[name].linkage = :internal
+    end
+    
+    @globals[name]
+  end
 
   def next_temp
     returning "t_#{@temp_index}" do
@@ -134,10 +152,31 @@ class Context
     end
   end
   
-  def add_function(name, *args, &blk)
+  def add_fn(name, *args, &blk)
     @mod.functions.add(name, *args) do |f,*params|
       @current_function = f
       yield f,*params if blk
+    end
+  end
+  
+  def gen_later(func)
+    @fns_to_generate << func
+  end
+  
+  def gen_fns
+    @fns_to_generate.each do |fn|
+      llvm_fn = add_fn(fn.symbol, fn.args_signature(self), fn.resultType.llvm_type(self)) do |main,|
+        entry_block = new_block
+        return_block = new_block
+        self.current_block = entry_block
+      
+        fn.body.gen(self, nil, return_block)
+      
+        builder.br return_block
+        self.current_block = return_block
+
+        builder.ret LLVM::Int32.from_i(0)
+      end
     end
   end
 
@@ -214,10 +253,10 @@ class Ast::Program
       rtype.gen(context)
     end
     
-    context.add_function("main", [], LLVM::Int32) do |main,|
-      entry = context.new_block
+    context.add_fn("$main", [], LLVM::Int32) do |main,|
+      entry_block = context.new_block
       return_block = context.new_block
-      context.current_block = entry
+      context.current_block = entry_block
       
       body.gen(context, nil, return_block)
       
@@ -227,8 +266,21 @@ class Ast::Program
       context.builder.ret LLVM::Int32.from_i(0)
     end
 
+    fns = context.gen_fns
+    # context.dump
+    context.add_fn("main", [], LLVM::Int32) do |main,|
+      entry_block = context.new_block
+      context.current_block = entry_block
+
+      fns.each do |fn|
+        context.globals("__#{fn.symbol}__", fn.llvm_type(context), context.functions[fn.symbol])
+      end
+
+      context.builder.ret context.builder.call(context.functions['$main'])
+    end
+
     context.verify
-    context.optimize!
+    # context.optimize!
     context.dump('fabl.s')
 
     context.execute
@@ -236,9 +288,15 @@ class Ast::Program
   
 end
 
+class Ast::IdType
+  def llvm_type(context)
+    type.llvm_type(context)
+  end
+end
+
 class Ast::NamedType
   def llvm_type(context)
-    return context[name]
+    context[name]
   end
 end
 
@@ -261,6 +319,16 @@ class Ast::RecordTypeDec
     end
     
     context[name] = LLVM::Type.struct(elems, false)
+  end
+end
+
+class Ast::ArrowType
+  def llvm_type(context)
+    LLVM.Pointer(LLVM.Function(args_signature(context), resultType.llvm_type(context)))
+  end
+  
+  def args_signature(context)
+    argTypes.map {|f| f.llvm_type(context) }
   end
 end
 
@@ -301,10 +369,23 @@ class Ast::FuncDecs
 end
 
 class Ast::FuncDec
-  def gen(context, exit_block, return_block)
+  def gen(context)
     log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
     
-    body.gen(context)
+    context[symbol] = context.globals("__#{symbol}__", llvm_type(context))
+    context.gen_later(self)
+  end
+  
+  def llvm_type(context)
+    LLVM.Pointer(LLVM.Function(args_signature(context), resultType.llvm_type(context)))
+  end
+  
+  def args_signature(context)
+    formals.map {|f| f.llvm_type(context) }
+  end
+  
+  def symbol
+    "#{name}_#{unique}"
   end
 end
 
@@ -321,7 +402,10 @@ end
 
 class Ast::CallSt
   def gen(context, exit_block, return_block)
-    log "Ast::CallSt #{func} #{args}"
+    log "Ast::CallSt #{func}"
+    
+    fn = func.gen(context)
+    context.builder.call fn
   end
 end
 
@@ -516,7 +600,7 @@ class Ast::UnOpExp
 end
 
 class Ast::LvalExp
-  SPECIAL_VALUES = ["true", "false", "nil"]
+  SPECIAL_VALUES = ["true", "false", "nil", "unit"]
   
   def gen(context)
     log "Ast::LvalExp #{lval}"
@@ -722,7 +806,7 @@ end
 
 class Ast::VarLvalue
   def gen(context)
-    log "Ast::VarLvalue #{symbol} #{context[symbol]}"
+    log "Ast::VarLvalue #{symbol} #{context[symbol].inspect}"
     return context[symbol]
   end
   

@@ -1,8 +1,11 @@
 {
+	var zz := 3;
 	func a(b:integer) {
-		var c := b
+		[* var c := b; *]
+		write("ohai")
 	};
-	a(3)
+	var yy := a;
+	yy(3)
 	[* func a(b:integer, c:integer) {
 		write(b, " ", c);
 		write(d(c, b))
