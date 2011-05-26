@@ -33,7 +33,7 @@ Todo
 ----
 
 - ✔ document how to run it
-- makefile for AstShim.java
+- ✔ makefile for AstShim.java
 
 
 Authors
