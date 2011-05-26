@@ -2,10 +2,17 @@
 	var zz := 3;
 	func a(b:integer) {
 		[* var c := b; *]
-		write("ohai")
+		if b > 0 then {
+			write("ohai", b);
+			a(b - 1)
+		} 
+	};
+	func qqq(b:integer) -> integer {
+		return b * 42
 	};
 	var yy := a;
-	yy(3)
+	yy(3);
+	write(qqq(1))
 	[* func a(b:integer, c:integer) {
 		write(b, " ", c);
 		write(d(c, b))

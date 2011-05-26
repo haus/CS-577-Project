@@ -20,6 +20,7 @@ program = AstShim::giveMeAST(source)
 Check.check(program)
 
 DEBUG = true
+MODULE = LLVM::Module.create("fabl")
 
 def returning(val)
   yield val
@@ -37,8 +38,9 @@ class Context
     @mod.functions
   end
   
-  def initialize(module_name)
-    @mod = LLVM::Module.create("fabl")
+  def initialize(mod, parent = nil)
+    @mod = mod
+    @parent = parent
     @current_function = nil
     @current_block = nil
     @builder = LLVM::Builder.create
@@ -184,8 +186,14 @@ class Context
       llvm_fn = add_fn(fn.symbol, fn.args_signature(self), fn.resultType.llvm_type(self)) do |main,|
         entry_block = new_block
         return_block = new_block
+        
         self.current_block = entry_block
       
+        fn.formals.each_with_index do |arg, i|
+          self[arg.symbol] = builder.alloca arg.llvm_type(self), arg.symbol
+          builder.store @current_function.params[i], self[arg.symbol]
+        end
+        
         fn.body.gen(self, nil, return_block)
       
         builder.br return_block
@@ -308,6 +316,10 @@ class Ast::IdType
   def llvm_type(context)
     type.llvm_type(context)
   end
+  
+  def symbol
+    "#{name}_#{unique}"
+  end
 end
 
 class Ast::NamedType
@@ -421,7 +433,11 @@ class Ast::CallSt
     log "Ast::CallSt #{func}"
     
     fn = func.gen(context)
-    context.builder.call fn
+    if args.length == 0
+      context.builder.call fn
+    else
+      context.builder.call(fn, *args.map {|a| a.gen(context) })
+    end
   end
 end
 
@@ -578,9 +594,9 @@ end
 class Ast::ReturnSt
   def gen(context, exit_block, return_block)
     log "Ast::ReturnSt #{returnValue}"
+
     if (returnValue != nil)
-      return_val = returnValue.gen(context)
-      return_type = returnValue.type.gen(context)
+      context.builder.ret returnValue.gen(context)
     end
   end
 end
@@ -641,8 +657,11 @@ class Ast::CallExp
   def gen(context)
     log "Ast::CallExp #{func}"
     
-    args.each do |arg|
-      arg.gen(context)
+    fn = func.gen(context)
+    if args.length == 0
+      context.builder.call fn
+    else
+      context.builder.call(fn, *args.map {|a| a.gen(context) })
     end
   end
 end
@@ -889,4 +908,4 @@ class Ast::RecordDerefLvalue
   end
 end
 
-program.gen(Context.new("fabl"))
+program.gen(Context.new(MODULE))

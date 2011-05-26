@@ -14,6 +14,7 @@ Nearly all expressions except for CallExp and RecordExp are working, similarly a
 	- Ast::Program
 	- Ast::Block
 	- Ast::VarDec
+	- Ast::FuncDec
 - Statements
 	- Ast::AssignSt
 	- Ast::WriteSt
@@ -24,6 +25,8 @@ Nearly all expressions except for CallExp and RecordExp are working, similarly a
 	- Ast::ExitSt
 	- Ast::BlockSt
 	- Ast::ReadSt
+	- Ast::CallSt
+	- Ast::ReturnSt
 - Expressions
 	- Ast::BinOpExp
 	- Ast::UnOpExp
@@ -33,6 +36,7 @@ Nearly all expressions except for CallExp and RecordExp are working, similarly a
 	- Ast::RealLitExp
 	- Ast::RecordExp
  	- Ast::StringLitExp
+	- Ast::CallExp
 - Initializers
 	- Ast::ArrayInit
 - Lvalues
@@ -44,17 +48,12 @@ Nearly all expressions except for CallExp and RecordExp are working, similarly a
 
 ### Implementation
 
-The two big things on our list is to tackle record initialization/derferencing and function declarations/calls next, and then finally to implement ReadSt, which should be a simple wrapper around scanf.
+The two big things on our list is to tackle record initialization/dereferencing and function declarations/calls next, and then finally to implement ReadSt, which should be a simple wrapper around scanf.
 
 - Nodes
 	- Ast::FuncDecs
-	- Ast::FuncDec
-- Statements
-	- Ast::CallSt
-	- Ast::ReturnSt
-- Expressions
-	- Ast::CallExp
 
+Functions are partially-implemented at the moment, but do not yet know about their freevars, and we have not tested mutual-recursion.
 
 ### Qualitative / Quanitative Analysis
 
