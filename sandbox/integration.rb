@@ -494,6 +494,10 @@ end
 class Ast::ReturnSt
   def gen(context, exit_block, return_block)
     log "Ast::ReturnSt #{returnValue}"
+    if (returnValue != nil)
+      return_val = returnValue.gen(context)
+      return_type = returnValue.type.gen(context)
+    end
   end
 end
 
