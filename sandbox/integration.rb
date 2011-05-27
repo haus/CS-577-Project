@@ -32,7 +32,7 @@ def log(str)
 end
 
 class Context
-  attr_accessor :builder, :printf, :malloc, :scanf
+  attr_accessor :builder, :printf, :malloc, :scanf, :fn_hash
   
   def functions
     @mod.functions
@@ -49,6 +49,7 @@ class Context
     @strings = {}
     @globals = {}
     @fns_to_generate = []
+    @fn_hash = {}
     
     init_runtime
     init_types
@@ -189,9 +190,19 @@ class Context
         
         self.current_block = entry_block
       
+        # index into params starting at 1, because the closure is the first parameter
         fn.formals.each_with_index do |arg, i|
           self[arg.symbol] = builder.alloca arg.llvm_type(self), arg.symbol
-          builder.store @current_function.params[i], self[arg.symbol]
+          builder.store @current_function.params[i+1], self[arg.symbol]
+        end
+        
+        # store the free variables into locals from the closure
+        closure = builder.bit_cast @current_function.params[0], fn.mk_closure(self)
+        fn.real_freevars.each_with_index do |var, i|
+          log "Freevar: #{var}"
+          freevar = builder.alloca var.llvm_type(self), var.symbol
+          closure_loc = builder.gep(closure, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(i)])
+          builder.store(builder.load(closure_loc), freevar)
         end
         
         fn.body.gen(self, nil, return_block)
@@ -201,6 +212,8 @@ class Context
 
         builder.ret LLVM::Int32.from_i(0)
       end
+      
+      @fn_hash[llvm_fn.to_ptr] = fn
     end
   end
 
@@ -291,7 +304,11 @@ class Ast::Program
     end
 
     fns = context.gen_fns
-
+    log context.fn_hash.inspect
+    # fn_hash indexes actual function pointers to Ast::FuncDecs,
+    # can we use the globals hash somehow to find them?
+    # that would mean doing lookups dynamically..yuck?
+    
     context.add_fn("main", [], LLVM::Int32) do |main,|
       entry_block = context.new_block
       context.current_block = entry_block
@@ -350,9 +367,15 @@ class Ast::RecordTypeDec
   end
 end
 
+# eek, arrowtypes and funcdecs don't have the same type signature
+# because functions take a closure as their first argument, and because
+# we don't know what the freevars will be, the arrow type adds a "dummy"
+# i8* to the front of the arg list, which would need to be bitcast to
+# the actual type of the function's closure
 class Ast::ArrowType
   def llvm_type(context)
     LLVM.Pointer(LLVM.Function(args_signature(context), resultType.llvm_type(context)))
+    # LLVM.Function(args_signature(context), resultType.llvm_type(context))
   end
   
   def args_signature(context)
@@ -378,7 +401,13 @@ class Ast::VarDec
   def gen(context)
     log "Ast::VarDec #{symbol} #{type}"
     value = initializer.gen(context)
-    variable = context.builder.alloca(type.llvm_type(context), symbol)
+    
+    log "VarDec value: #{value.to_ptr}"
+    
+    # hrm, do we have enough information here to (know when to) get the MkClosure'd 
+    # type of a function which we're assigning?
+    # this should allow the alloca'd var to have the same type (desirable :)
+    variable = context.builder.alloca(LLVM.Type(type.llvm_type(context)), symbol)
     context[symbol] = variable
     context.builder.store(value, variable)
   end
@@ -399,7 +428,7 @@ end
 class Ast::FuncDec
   def gen(context)
     log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
-    
+    log "Size of closure: #{mk_closure(context).size} bytes"
     context[symbol] = context.globals("__#{symbol}__", llvm_type(context))
     context.gen_later(self)
   end
@@ -409,7 +438,15 @@ class Ast::FuncDec
   end
   
   def args_signature(context)
-    formals.map {|f| f.llvm_type(context) }
+    formals.map {|f| f.llvm_type(context) }.unshift mk_closure(context)
+  end
+  
+  def mk_closure(context)
+    LLVM.Pointer(LLVM.Struct(*real_freevars.map {|v| log "Free: #{v}"; v.llvm_type(context) }))
+  end
+  
+  def real_freevars
+    freevars.reject {|v| v.symbol == symbol }
   end
   
   def symbol
@@ -430,13 +467,15 @@ end
 
 class Ast::CallSt
   def gen(context, exit_block, return_block)
-    log "Ast::CallSt #{func}"
+    log "Ast::CallSt #{func} #{args.map{|a| a.inspect}}"
     
     fn = func.gen(context)
     if args.length == 0
+      log "calling fn with 0 args"
       context.builder.call fn
     else
-      context.builder.call(fn, *args.map {|a| a.gen(context) })
+      log "calling #{fn} with #{args.length} args"
+      context.builder.call(fn, *args.map {|a| a.gen(context) }.unshift(LLVM::Int32.from_i(0)))
     end
   end
 end
@@ -849,7 +888,7 @@ end
 
 class Ast::VarLvalue
   def gen(context)
-    log "Ast::VarLvalue #{symbol} #{context[symbol].inspect}"
+    log "Ast::VarLvalue #{symbol}"
     return context[symbol]
   end
   

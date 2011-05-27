@@ -94,6 +94,7 @@ module LLVM
     
     # Creates a struct type with the given array of element types.
     def self.struct(elt_types, is_packed)
+      puts elt_types.inspect
       elt_types.map! { |ty| LLVM::Type(ty) }
       elt_types_ptr = FFI::MemoryPointer.new(FFI.type_size(:pointer) * elt_types.size)
       elt_types_ptr.write_array_of_pointer(elt_types)
