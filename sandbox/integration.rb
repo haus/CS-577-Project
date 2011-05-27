@@ -304,7 +304,7 @@ class Ast::Program
     end
 
     context.verify
-    # context.optimize!
+    context.optimize!
     context.dump('fabl.s')
 
     context.execute
