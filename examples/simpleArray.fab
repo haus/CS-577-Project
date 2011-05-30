@@ -1,5 +1,5 @@
 {
-	var a := @integer{3 of 5};
+	var a := @boolean{3 of false};
 	write(a[2]);
 	var b := a[2]
 }

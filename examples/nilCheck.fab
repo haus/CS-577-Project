@@ -2,10 +2,11 @@ record blue { a: integer, b: integer};
 record red extends blue { c: boolean };
 {
 var yellow:= blue{a := 5, b:=6};
+var orange:blue := nil;
 var green := red{a:=1, b:=3, c:=true};
 write(green.a);
 write(green.b);
 write(green.c);
-
-var a := 2
+write(orange.a);
+write(orange.b)
 }
