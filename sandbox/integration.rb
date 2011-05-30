@@ -793,14 +793,23 @@ class Ast::ArrayExp
 end
 
 class Ast::RecordExp
-  def size_in_bytes(context)
-    element_size = LLVM::Int32.from_i(4)
-    record_elements = LLVM::Int32.from_i(initializers.length)
-    record_bytes = context.builder.mul record_elements, element_size, "record_bytes"
+  def size_in_bytes(context)    
+    @values = Array.new
+    @record_bytes = context.builder.alloca LLVM::Int, "record_bytes"
+    current_bytes = context.builder.alloca LLVM::Int, "current_bytes"
+    context.builder.store LLVM::Int.from_i(0), @record_bytes
+    initializers.each do |initializer|
+      @values[initializer.offset] = initializer.value.gen(context)
+      context.builder.store @values[initializer.offset].type.size, current_bytes
+      context.builder.load current_bytes, "current_bytes"
+      @record_bytes = context.builder.add current_bytes, @record_bytes, "record_bytes"
+    end
   end
 
   def allocate(context)
-    record_loc_tmp = context.builder.call context.malloc, size_in_bytes(context)
+    size_in_bytes(context)
+    context.builder.load @record_bytes, "record_bytes"
+    record_loc_tmp = context.builder.call context.malloc, @record_bytes
     record_loc_tmp_bitcast = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM::Type.struct(@elems, false)), "record_loc_tmp_bitcast"
 
     @record_loc = context.builder.alloca LLVM::Pointer(LLVM::Type.struct(@elems, false)), "record_loc"
@@ -815,12 +824,13 @@ class Ast::RecordExp
       i.type.llvm_type(context)
     end
 
+    
+
     allocate(context)
     
     initializers.each do |initializer|
-      value = initializer.value.gen(context)
-      ptr = context.builder.gep(@record_base, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(initializer.offset)])
-      context.builder.store(value, ptr)
+      ptr = context.builder.gep(@record_base, [LLVM::Int.from_i(0), LLVM::Int32.from_i(initializer.offset)])
+      context.builder.store(@values[initializer.offset], ptr)
     end
 
     @record_base
