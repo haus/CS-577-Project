@@ -1,6 +1,9 @@
 JAVAC = javac -classpath ./:frontend.jar
 
-all: AstShim.class
+all: AstShim.class AstViewer.class
+
+AstViewer.class: Ast.class
+	$(JAVAC) AstViewer.java
 
 AstShim.class: Ast.class
 	$(JAVAC) AstShim.java
