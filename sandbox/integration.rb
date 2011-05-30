@@ -743,6 +743,7 @@ class Ast::ArrayExp
     # saving the count and incrementing the @array_size
     @array_size = allocate_size(context)
     counts = initializers.map {|i| i.gen_count(context, @array_size) }
+    @element_size = initializers[0].value.gen(context).type.size
 
     # malloc the number of bytes required for the array & store the size -4 bytes
     # before the beginning of the array
@@ -771,8 +772,7 @@ class Ast::ArrayExp
   
   def size_in_bytes(context)
     current_size = context.builder.load @array_size, "current_size"
-    element_size = LLVM::Int32.from_i(4)
-    array_bytes = context.builder.mul current_size, element_size, "array_bytes"
+    array_bytes = context.builder.mul current_size, @element_size, "array_bytes"
     count_size = LLVM::Int32.from_i(4)
     context.builder.add array_bytes, count_size, "total_bytes"
   end
@@ -780,9 +780,9 @@ class Ast::ArrayExp
   def allocate_array(context)
     array_loc_tmp = context.builder.call context.malloc, size_in_bytes(context)
     array_loc_tmp_bitcast = context.builder.bit_cast array_loc_tmp, 
-      LLVM::Pointer(LLVM.Struct(LLVM::Int32, LLVM::Array(LLVM::Int32, 0))), "array_loc_tmp_bitcast"
+      LLVM::Pointer(LLVM.Struct(LLVM::Int32, LLVM::Array(type.llvm_type(context), 0))), "array_loc_tmp_bitcast"
 
-    array_loc = context.builder.alloca LLVM::Pointer(LLVM.Struct(LLVM::Int32, LLVM::Array(LLVM::Int32, 0))), "array_loc"
+    array_loc = context.builder.alloca LLVM::Pointer(LLVM.Struct(LLVM::Int32, LLVM::Array(type.llvm_type(context), 0))), "array_loc"
     context.builder.store array_loc_tmp_bitcast, array_loc
     context.builder.load array_loc, "array_base"
   end
@@ -811,7 +811,7 @@ class Ast::RecordExp
     size_in_bytes(context)
     context.builder.load @record_bytes, "record_bytes"
     record_loc_tmp = context.builder.call context.malloc, @record_bytes
-    record_loc_tmp_bitcast = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM.Struct(@elems, false)), "record_loc_tmp_bitcast"
+    record_loc_tmp_bitcast = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM.Struct(*@elems)), "record_loc_tmp_bitcast"
 
     @record_loc = context.builder.alloca LLVM::Pointer(LLVM::Type.struct(@elems, false)), "record_loc"
     context.builder.store record_loc_tmp_bitcast, @record_loc
