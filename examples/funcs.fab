@@ -3,7 +3,7 @@
 	func a(b:integer) {
 		[* var c := b; *]
 		if b > 0 then {
-			write("ohai", b, zz);
+			write("ohai", b);
 			a(b - 1)
 		} 
 	};

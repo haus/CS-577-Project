@@ -192,8 +192,8 @@ class Context
       
         # index into params starting at 1, because the closure is the first parameter
         fn.formals.each_with_index do |arg, i|
-          self[arg.symbol] = builder.alloca arg.llvm_type(self), arg.symbol
-          builder.store @current_function.params[i+1], self[arg.symbol]
+          self[arg.symbol] = Resolver.new(builder.alloca(arg.llvm_type(self), arg.symbol), arg.llvm_type(self))
+          builder.store @current_function.params[i+1], self[arg.symbol].value
         end
         
         # store the free variables into locals from the closure
@@ -397,6 +397,14 @@ class Ast::Block
   end
 end
 
+class Resolver
+  attr_reader :value, :ref
+  
+  def initialize(value, ref)
+    @value, @ref = value, ref
+  end
+end
+
 class Ast::VarDec
   def gen(context)
     log "Ast::VarDec #{symbol} #{type}"
@@ -408,7 +416,7 @@ class Ast::VarDec
     # type of a function which we're assigning?
     # this should allow the alloca'd var to have the same type (desirable :)
     variable = context.builder.alloca(LLVM.Type(type.llvm_type(context)), symbol)
-    context[symbol] = variable
+    context[symbol] = Resolver.new(variable, initializer)
     context.builder.store(value, variable)
   end
   
@@ -428,8 +436,7 @@ end
 class Ast::FuncDec
   def gen(context)
     log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
-    log "Size of closure: #{mk_closure(context).size} bytes"
-    context[symbol] = context.globals("__#{symbol}__", llvm_type(context))
+    context[symbol] = Resolver.new(context.globals("__#{symbol}__", llvm_type(context)), llvm_type(context))
     context.gen_later(self)
   end
   
@@ -442,7 +449,7 @@ class Ast::FuncDec
   end
   
   def mk_closure(context)
-    LLVM.Pointer(LLVM.Struct(*real_freevars.map {|v| log "Free: #{v}"; v.llvm_type(context) }))
+    LLVM.Pointer(LLVM.Struct(*freevars.map {|v| v.llvm_type(context) }))
   end
   
   def real_freevars
@@ -590,12 +597,12 @@ class Ast::ForSt
     loop_stop = stop.gen(context)
 
     # Assign start to loopVar
-    context.builder.store(loop_start, context[loop_symbol])
+    context.builder.store(loop_start, context[loop_symbol].value)
     context.builder.br(test_block)
     
     context.current_block = test_block
     
-    current = context.builder.load context[loop_symbol], "loop_val"
+    current = context.builder.load context[loop_symbol].value, "loop_val"
     context.builder.cond(context.builder.icmp(:sle, current, loop_stop), 
       body_block, exit_block)
       
@@ -603,7 +610,7 @@ class Ast::ForSt
     body.gen(context, exit_block, return_block)
     
     result = context.builder.add current, loop_step, "loop_temp"
-    context.builder.store(result, context[loop_symbol])
+    context.builder.store(result, context[loop_symbol].value)
     
     context.builder.br(test_block)
     
@@ -889,7 +896,7 @@ end
 class Ast::VarLvalue
   def gen(context)
     log "Ast::VarLvalue #{symbol}"
-    return context[symbol]
+    return context[symbol].value
   end
   
   def symbol
@@ -943,7 +950,6 @@ class Ast::RecordDerefLvalue
     record_base = context.builder.load record_loc, "record_base"
     
     record_element_ptr = context.builder.gep record_base, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(offset)]
-    
   end
 end
 
