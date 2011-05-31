@@ -403,21 +403,20 @@ class Resolver
   def initialize(value, ref)
     @value, @ref = value, ref
   end
+  
+  def type(context)
+    ref.llvm_type(context)
+  end
 end
 
 class Ast::VarDec
   def gen(context)
     log "Ast::VarDec #{symbol} #{type}"
-    value = initializer.gen(context)
+    resolver = initializer.gen(context)
     
-    log "VarDec value: #{value.to_ptr}"
-    
-    # hrm, do we have enough information here to (know when to) get the MkClosure'd 
-    # type of a function which we're assigning?
-    # this should allow the alloca'd var to have the same type (desirable :)
-    variable = context.builder.alloca(LLVM.Type(type.llvm_type(context)), symbol)
-    context[symbol] = Resolver.new(variable, initializer)
-    context.builder.store(value, variable)
+    variable = context.builder.alloca(resolver.type(context), symbol)
+    context[symbol] = resolver
+    context.builder.store(resolver.value, variable)
   end
   
   def symbol
@@ -436,7 +435,7 @@ end
 class Ast::FuncDec
   def gen(context)
     log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
-    context[symbol] = Resolver.new(context.globals("__#{symbol}__", llvm_type(context)), llvm_type(context))
+    context[symbol] = Resolver.new(context.globals("__#{symbol}__", llvm_type(context)), self)
     context.gen_later(self)
   end
   
@@ -476,13 +475,14 @@ class Ast::CallSt
   def gen(context, exit_block, return_block)
     log "Ast::CallSt #{func} #{args.map{|a| a.inspect}}"
     
-    fn = func.gen(context)
+    fn = func.gen(context).value
     if args.length == 0
       log "calling fn with 0 args"
       context.builder.call fn
     else
       log "calling #{fn} with #{args.length} args"
-      context.builder.call(fn, *args.map {|a| a.gen(context) }.unshift(LLVM::Int32.from_i(0)))
+     log (args.map {|a| a.gen(context).value }.unshift(LLVM::Int32.from_i(0))).inspect
+      context.builder.call(fn, *args.map {|a| a.gen(context).value }) #.unshift(LLVM::Int32.from_i(0)))
     end
   end
 end
@@ -505,7 +505,7 @@ class Ast::WriteSt
   def gen(context, exit_block, return_block)
     log "Ast::WriteSt"
     exps.each do |exp|
-      value = exp.gen(context)
+      value = exp.gen(context).value
       
       case exp.type.name
         when 'integer' then context.write_int(value)
@@ -521,7 +521,7 @@ class Ast::IfSt
   def gen(context, exit_block, return_block)
     log "Ast::IfSt #{test}"
     
-    test_val      = test.gen(context)
+    test_val      = test.gen(context).value
     true_block    = context.new_block
     false_block   = context.new_block
     end_block     = context.new_block
@@ -642,7 +642,7 @@ class Ast::ReturnSt
     log "Ast::ReturnSt #{returnValue}"
 
     if (returnValue != nil)
-      context.builder.ret returnValue.gen(context)
+      context.builder.ret returnValue.gen(context).value
     end
   end
 end
@@ -661,14 +661,19 @@ class Ast::BinOpExp
 
   def gen(context)
     log "Ast::BinOpExp #{OPERATORS[binOp]}"
-    
-    lhs = left.gen(context)
-    rhs = right.gen(context)
-    if binOp >= 6
+    log left.inspect
+    lhs = left.gen(context).value
+    rhs = right.gen(context).value
+    result = if binOp >= 6
       context.builder.send INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
     else
       context.builder.icmp INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
     end
+    Resolver.new(result, self)
+  end
+  
+  def llvm_type(context)
+    type.llvm_type(context)
   end
 end
 
@@ -681,7 +686,8 @@ class Ast::UnOpExp
     
     op = operand.gen(context)
 
-    context.builder.send INSTRUCTIONS[unOp], op, context.next_temp
+    result = context.builder.send INSTRUCTIONS[unOp], op, context.next_temp
+    Resolver.new(result, self)
   end
 end
 
@@ -695,7 +701,8 @@ class Ast::LvalExp
       SPECIAL_VALUES.include?(lval.name) and return context[lval.name]
     end
 
-    context.builder.load lval.gen(context), context.next_temp
+    lval.gen(context)
+    # context.builder.load lval.gen(context).value, context.next_temp
   end
 end
 
@@ -703,12 +710,13 @@ class Ast::CallExp
   def gen(context)
     log "Ast::CallExp #{func}"
     
-    fn = func.gen(context)
-    if args.length == 0
+    fn = func.gen(context).value
+    result = if args.length == 0
       context.builder.call fn
     else
-      context.builder.call(fn, *args.map {|a| a.gen(context) })
+      context.builder.call(fn, *args.map {|a| a.gen(context).value })
     end
+    Resolver.new(result, self)
   end
 end
 
@@ -876,7 +884,11 @@ end
 class Ast::IntLitExp
   def gen(context)
     log "Ast::IntLitExp #{lit}"
-    LLVM::Int32.from_i(lit.to_i)
+    Resolver.new(LLVM::Int32.from_i(lit.to_i), self)
+  end
+  
+  def llvm_type(context)
+    LLVM::Int32
   end
 end
 
@@ -889,14 +901,14 @@ end
 class Ast::StringLitExp
   def gen(context)
     log "Ast::StringLitExp #{lit}"
-    context.strings(lit)
+    Resolver.new(context.strings(lit), self)
   end
 end
 
 class Ast::VarLvalue
   def gen(context)
     log "Ast::VarLvalue #{symbol}"
-    return context[symbol].value
+    return context[symbol]
   end
   
   def symbol
