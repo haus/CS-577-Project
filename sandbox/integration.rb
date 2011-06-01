@@ -32,7 +32,7 @@ def log(str)
 end
 
 class Context
-  attr_accessor :builder, :printf, :malloc, :scanf, :fn_hash
+  attr_accessor :builder, :printf, :malloc, :scanf, :fn_hash, :symbols
   
   def functions
     @mod.functions
@@ -193,7 +193,7 @@ class Context
         # index into params starting at 1, because the closure is the first parameter
         fn.formals.each_with_index do |arg, i|
           self[arg.symbol] = Resolver.new(builder.alloca(arg.llvm_type(self), arg.symbol), arg.llvm_type(self))
-          builder.store @current_function.params[i+1], self[arg.symbol].value
+          builder.store @current_function.params[i+1], self[arg.symbol].value(self)
         end
         
         # store the free variables into locals from the closure
@@ -241,16 +241,16 @@ class Context
   end
   
   def dump(file = nil)
-    save_stderr = $stderr
-    if file
-      $stderr = File.open(file, "w")
-    end
+    # save_stderr = $stderr
+    # if file
+    #   $stderr = File.open(file, "w")
+    # end
     @mod.dump
-    if file
-      $stderr.close
-    end
-  ensure
-    $stderr = save_stderr
+    # if file
+    #   $stderr.close
+    # end
+  # ensure
+  #   $stderr = save_stderr
   end
   
   def engine
@@ -321,7 +321,7 @@ class Ast::Program
     end
 
     context.verify
-    context.optimize!
+    # context.optimize!
     context.dump('fabl.s')
 
     context.execute
@@ -398,10 +398,14 @@ class Ast::Block
 end
 
 class Resolver
-  attr_reader :value, :ref
+  attr_reader :ref
   
   def initialize(value, ref)
     @value, @ref = value, ref
+  end
+  
+  def value(context)
+    @value
   end
   
   def type(context)
@@ -409,14 +413,29 @@ class Resolver
   end
 end
 
+class RefResolver < Resolver
+  def value(context)
+    context.builder.load @value
+  end
+  
+  def reference
+    @value
+  end
+end
+    
+
 class Ast::VarDec
   def gen(context)
     log "Ast::VarDec #{symbol} #{type}"
     resolver = initializer.gen(context)
-    
     variable = context.builder.alloca(resolver.type(context), symbol)
-    context[symbol] = resolver
-    context.builder.store(resolver.value, variable)
+    context.builder.store(resolver.value(context), variable)
+
+    context[symbol] = RefResolver.new(variable, self)
+  end
+  
+  def llvm_type(context)
+    type.llvm_type(context)
   end
   
   def symbol
@@ -435,7 +454,7 @@ end
 class Ast::FuncDec
   def gen(context)
     log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
-    context[symbol] = Resolver.new(context.globals("__#{symbol}__", llvm_type(context)), self)
+    context[symbol] = RefResolver.new(context.globals("__#{symbol}__", llvm_type(context)), self)
     context.gen_later(self)
   end
   
@@ -464,8 +483,8 @@ class Ast::AssignSt
   def gen(context, exit_block, return_block)
     log "Ast::AssignSt #{lhs}"
     
-    ref = lhs.gen(context)
-    val = rhs.gen(context)
+    ref = lhs.gen(context).reference
+    val = rhs.gen(context).value(context)
     
     context.builder.store(val, ref)
   end
@@ -475,14 +494,14 @@ class Ast::CallSt
   def gen(context, exit_block, return_block)
     log "Ast::CallSt #{func} #{args.map{|a| a.inspect}}"
     
-    fn = func.gen(context).value
+    fn = func.gen(context).value(context)
     if args.length == 0
       log "calling fn with 0 args"
       context.builder.call fn
     else
       log "calling #{fn} with #{args.length} args"
-     log (args.map {|a| a.gen(context).value }.unshift(LLVM::Int32.from_i(0))).inspect
-      context.builder.call(fn, *args.map {|a| a.gen(context).value }) #.unshift(LLVM::Int32.from_i(0)))
+     log (args.map {|a| a.gen(context).value(context) }.unshift(LLVM::Int32.from_i(0))).inspect
+      context.builder.call(fn, *args.map {|a| a.gen(context).value(context) }) #.unshift(LLVM::Int32.from_i(0)))
     end
   end
 end
@@ -505,7 +524,7 @@ class Ast::WriteSt
   def gen(context, exit_block, return_block)
     log "Ast::WriteSt"
     exps.each do |exp|
-      value = exp.gen(context).value
+      value = exp.gen(context).value(context)
       
       case exp.type.name
         when 'integer' then context.write_int(value)
@@ -521,7 +540,7 @@ class Ast::IfSt
   def gen(context, exit_block, return_block)
     log "Ast::IfSt #{test}"
     
-    test_val      = test.gen(context).value
+    test_val      = test.gen(context).value(context)
     true_block    = context.new_block
     false_block   = context.new_block
     end_block     = context.new_block
@@ -554,7 +573,7 @@ class Ast::WhileSt
     context.current_block = test_block
     test_val = test.gen(context)
     
-    context.builder.cond(context.builder.icmp(:eq, test_val, LLVM::Int1.from_i(1)), 
+    context.builder.cond(context.builder.icmp(:eq, test_val.value(context), LLVM::Int1.from_i(1)), 
       body_block, exit_block)
     
     context.current_block = body_block
@@ -592,17 +611,17 @@ class Ast::ForSt
     body_block = context.new_block
     exit_block = context.new_block
 
-    loop_start = start.gen(context)
-    loop_step = step.gen(context)
-    loop_stop = stop.gen(context)
+    loop_start = start.gen(context).value(context)
+    loop_step = step.gen(context).value(context)
+    loop_stop = stop.gen(context).value(context)
 
     # Assign start to loopVar
-    context.builder.store(loop_start, context[loop_symbol].value)
+    context.builder.store(loop_start, context[loop_symbol].value(context))
     context.builder.br(test_block)
     
     context.current_block = test_block
     
-    current = context.builder.load context[loop_symbol].value, "loop_val"
+    current = context.builder.load context[loop_symbol].value(context), "loop_val"
     context.builder.cond(context.builder.icmp(:sle, current, loop_stop), 
       body_block, exit_block)
       
@@ -610,7 +629,7 @@ class Ast::ForSt
     body.gen(context, exit_block, return_block)
     
     result = context.builder.add current, loop_step, "loop_temp"
-    context.builder.store(result, context[loop_symbol].value)
+    context.builder.store(result, context[loop_symbol].value(context))
     
     context.builder.br(test_block)
     
@@ -642,7 +661,7 @@ class Ast::ReturnSt
     log "Ast::ReturnSt #{returnValue}"
 
     if (returnValue != nil)
-      context.builder.ret returnValue.gen(context).value
+      context.builder.ret returnValue.gen(context).value(context)
     end
   end
 end
@@ -662,8 +681,8 @@ class Ast::BinOpExp
   def gen(context)
     log "Ast::BinOpExp #{OPERATORS[binOp]}"
     log left.inspect
-    lhs = left.gen(context).value
-    rhs = right.gen(context).value
+    lhs = left.gen(context).value(context)
+    rhs = right.gen(context).value(context)
     result = if binOp >= 6
       context.builder.send INSTRUCTIONS[binOp], lhs, rhs, context.next_temp
     else
@@ -686,7 +705,7 @@ class Ast::UnOpExp
     
     op = operand.gen(context)
 
-    result = context.builder.send INSTRUCTIONS[unOp], op, context.next_temp
+    result = context.builder.send INSTRUCTIONS[unOp], op.value(context), context.next_temp
     Resolver.new(result, self)
   end
 end
@@ -710,11 +729,11 @@ class Ast::CallExp
   def gen(context)
     log "Ast::CallExp #{func}"
     
-    fn = func.gen(context).value
+    fn = func.gen(context).value(context)
     result = if args.length == 0
       context.builder.call fn
     else
-      context.builder.call(fn, *args.map {|a| a.gen(context).value })
+      context.builder.call(fn, *args.map {|a| a.gen(context).value(context) })
     end
     Resolver.new(result, self)
   end
