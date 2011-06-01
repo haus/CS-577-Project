@@ -16,12 +16,15 @@ Matt
 
 + ✔ RecordExp, RecordInit, RecordDeref
 + ✔ RecordTypeDec
-- ReadSt
++ ✔ ReadSt
+- RecordDeref needs nil check
+- RecordExp needs size information
+- Types need size information
 
 Both
 ----
 
-- progress report!
++ ✔ progress report!
 - unify type handling
 	- add llvm_type to all types, for the yummy recursive generation thereof
 		+ ✔ added to NamedType, ArrayType
