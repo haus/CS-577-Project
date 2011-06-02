@@ -212,7 +212,13 @@ class Context
           freevar = context.builder.alloca var.llvm_type(context), var.symbol
           closure_loc = context.builder.gep(closure, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(i)])
           context.builder.store(context.builder.load(closure_loc), freevar)
-          context[var.symbol] = RefResolver.new(freevar, var)
+
+          # resolve (mutually-)recursive function symbols to their AST node
+          if fn.is_fn?(var.symbol)
+            context[var.symbol] = RefResolver.new(freevar, fn.function(var.symbol))
+          else
+            context[var.symbol] = RefResolver.new(freevar, var)
+          end
         end
         
         fn.body.gen(context, nil, return_block)
@@ -435,7 +441,7 @@ class Ast::VarDec
     variable = context.builder.alloca(resolver.type(context), symbol)
     context.builder.store(resolver.value(context), variable)
 
-    context[symbol] = RefResolver.new(variable, self)
+    context[symbol] = RefResolver.new(variable, resolver.ref)
   end
   
   def llvm_type(context)
@@ -450,16 +456,25 @@ end
 class Ast::FuncDecs
   def gen(context)
     decs.each do |dec|
-      dec.gen(context)
+      dec.gen(context, self)
     end
   end
 end
 
 class Ast::FuncDec
-  def gen(context)
+  def gen(context, funcdecs)
     log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
+    @funcdecs = funcdecs.decs.inject({}) {|decs, dec| decs[dec.symbol] = dec; decs }
     context[symbol] = RefResolver.new(context.globals("__#{symbol}__", llvm_type(context)), self)
     context.gen_later(self)
+  end
+  
+  def is_fn?(symbol)
+    !!@funcdecs[symbol]
+  end
+  
+  def function(symbol)
+    @funcdecs[symbol]
   end
   
   def llvm_type(context)

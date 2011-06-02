@@ -10,10 +10,16 @@
 	func qqq(b:integer) -> integer {
 		return b * 42
 	};
-	a(3)
-[*	var yy := a;
+	func rrr(b:integer) -> integer {
+		return b * -42
+	};
+	a(3);
+	var yy := a;
 	yy(3); 
-	write(qqq(1)) *]
+	write(qqq(1));
+	var b := qqq;
+	b := rrr;
+	write(rrr(2))
 	[* func a(b:integer, c:integer) {
 		write(b, " ", c);
 		write(d(c, b))
