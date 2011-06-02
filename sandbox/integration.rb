@@ -32,10 +32,16 @@ def log(str)
 end
 
 class Context
-  attr_accessor :builder, :printf, :malloc, :scanf, :fn_hash, :symbols
+  attr_accessor :builder, :current_function
   
   def functions
     @mod.functions
+  end
+
+  [:printf, :malloc, :scanf, :_write_int, :_write_string, :_write_bool, :_read_int].each do |accessor_or_delegate|
+    define_method accessor_or_delegate do
+      instance_variable_get("@#{accessor_or_delegate.to_s}") || @parent.send(accessor_or_delegate)
+    end
   end
   
   def initialize(mod, parent = nil)
@@ -49,20 +55,21 @@ class Context
     @strings = {}
     @globals = {}
     @fns_to_generate = []
-    @fn_hash = {}
     
-    init_runtime
-    init_types
-    init_globals
+    unless parent
+      init_runtime
+      init_types
+      init_globals
+    end
   end
   
   def init_runtime
     @printf = @mod.functions.add("printf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
     @scanf = @mod.functions.add("scanf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
-    @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int32], LLVM.Pointer(LLVM::Int8)))
+    @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int], LLVM.Pointer(LLVM::Int8)))
     @exit = @mod.functions.add("exit", LLVM.Function([LLVM::Int32], LLVM.Void))
 
-    @read_int = add_fn("_read_int", LLVM.Function([LLVM.Pointer(LLVM::Int32)], LLVM.Void)) do |read_int, int|
+    @_read_int = add_fn("_read_int", LLVM.Function([LLVM.Pointer(LLVM::Int32)], LLVM.Void)) do |read_int, int|
       self.current_block = new_block
       int_store = @builder.alloca LLVM::Int32, "int_store"
       int_format_string = strings("%d", "int_format_string")
@@ -73,7 +80,7 @@ class Context
       @builder.ret_void
     end
     
-    @write_int = add_fn("_write_int", LLVM.Function([LLVM::Int32], LLVM.Void)) do |write_int, int|
+    @_write_int = add_fn("_write_int", LLVM.Function([LLVM::Int32], LLVM.Void)) do |write_int, int|
       self.current_block = new_block
       
       int_format_string = strings("%d\n", "int_format_string")
@@ -82,7 +89,7 @@ class Context
       @builder.ret_void
     end
     
-    @write_string = add_fn("_write_string", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM.Void)) do |write_string, string|
+    @_write_string = add_fn("_write_string", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM.Void)) do |write_string, string|
       self.current_block = new_block
 
       string_format_string = strings("%s\n", "string_format_string")
@@ -91,7 +98,7 @@ class Context
       @builder.ret_void
     end
 
-    @write_bool = add_fn("_write_bool", LLVM.Function([LLVM::Int1], LLVM.Void)) do |write_bool, bool|
+    @_write_bool = add_fn("_write_bool", LLVM.Function([LLVM::Int1], LLVM.Void)) do |write_bool, bool|
       self.current_block = new_block
 
       true_block = new_block
@@ -105,12 +112,12 @@ class Context
 
       self.current_block = true_block
       true_string = strings("true", "true_string")
-      @builder.call(@write_string, true_string)
+      @builder.call(@_write_string, true_string)
       @builder.br return_block
 
       self.current_block = false_block
       false_string = strings("false", "false_string")
-      @builder.call(@write_string, false_string)
+      @builder.call(@_write_string, false_string)
       @builder.br return_block
 
       self.current_block = return_block
@@ -125,25 +132,25 @@ class Context
   end
   
   def init_globals
-    @symbols["true"] = LLVM::Int1.from_i(1)
-    @symbols["false"] = LLVM::Int1.from_i(0)
+    @symbols["true"] = Resolver.new(LLVM::Int1.from_i(1), nil)
+    @symbols["false"] = Resolver.new(LLVM::Int1.from_i(0), nil)
     @symbols["nil"] = LLVM::Int8.from_i(0)
   end
 
   def read_int(int)
-    @builder.call @read_int, int
+    @builder.call self._read_int, int
   end
   
   def write_bool(bool)
-    @builder.call @write_bool, bool
+    @builder.call self._write_bool, bool
   end
   
   def write_int(int)
-    @builder.call @write_int, int
+    @builder.call self._write_int, int
   end
   
   def write_string(string)
-    @builder.call @write_string, string
+    @builder.call self._write_string, string
   end
   
   def exit(value)
@@ -155,10 +162,10 @@ class Context
   end
   
   def globals(name, type, value = nil)
-    @globals[name] ||= @mod.globals.add(type, name)
+    @globals[name] ||= (@mod.globals.named(name) || @mod.globals.add(type, name))
 
     if value
-      @globals[name].initializer = value if value
+      @globals[name].initializer = value
       @globals[name].linkage = :internal
     end
     
@@ -184,36 +191,41 @@ class Context
   
   def gen_fns
     @fns_to_generate.each do |fn|
-      llvm_fn = add_fn(fn.symbol, fn.args_signature(self), fn.resultType.llvm_type(self)) do |main,|
-        entry_block = new_block
-        return_block = new_block
+      context = Context.new(@mod, self)
+      log "..Generating #{fn.symbol}"
+      
+      llvm_fn = context.add_fn(fn.symbol, fn.args_signature(context), fn.resultType.llvm_type(context)) do |main,|        
+        entry_block = context.new_block
+        return_block = context.new_block
         
-        self.current_block = entry_block
+        context.current_block = entry_block
       
         # index into params starting at 1, because the closure is the first parameter
         fn.formals.each_with_index do |arg, i|
-          self[arg.symbol] = Resolver.new(builder.alloca(arg.llvm_type(self), arg.symbol), arg.llvm_type(self))
-          builder.store @current_function.params[i+1], self[arg.symbol].value(self)
+          context[arg.symbol] = RefResolver.new(context.builder.alloca(arg.llvm_type(context), arg.symbol), arg) #.llvm_type(context))
+          context.builder.store context.current_function.params[i+1], context[arg.symbol].reference
         end
         
         # store the free variables into locals from the closure
-        closure = builder.bit_cast @current_function.params[0], fn.mk_closure(self)
-        fn.real_freevars.each_with_index do |var, i|
-          log "Freevar: #{var}"
-          freevar = builder.alloca var.llvm_type(self), var.symbol
-          closure_loc = builder.gep(closure, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(i)])
-          builder.store(builder.load(closure_loc), freevar)
+        closure = context.builder.bit_cast context.current_function.params[0], fn.closure_arg_type(context)
+        fn.freevars.each_with_index do |var, i|
+          freevar = context.builder.alloca var.llvm_type(context), var.symbol
+          closure_loc = context.builder.gep(closure, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(i)])
+          context.builder.store(context.builder.load(closure_loc), freevar)
+          context[var.symbol] = RefResolver.new(freevar, var)
         end
         
-        fn.body.gen(self, nil, return_block)
+        fn.body.gen(context, nil, return_block)
       
-        builder.br return_block
-        self.current_block = return_block
-
-        builder.ret LLVM::Int32.from_i(0)
+        context.builder.br return_block
+        context.current_block = return_block
+        
+        if fn.resultType.name == "unit"
+          context.builder.ret_void
+        else
+          context.builder.ret LLVM::Int32.from_i(0)
+        end
       end
-      
-      @fn_hash[llvm_fn.to_ptr] = fn
     end
   end
 
@@ -241,16 +253,7 @@ class Context
   end
   
   def dump(file = nil)
-    # save_stderr = $stderr
-    # if file
-    #   $stderr = File.open(file, "w")
-    # end
     @mod.dump
-    # if file
-    #   $stderr.close
-    # end
-  # ensure
-  #   $stderr = save_stderr
   end
   
   def engine
@@ -263,7 +266,7 @@ class Context
   end
   
   def [](symbol)
-    @symbols[symbol]
+    @symbols[symbol] || @parent[symbol]
   end
   
   def []=(symbol, value)
@@ -290,6 +293,7 @@ class Ast::Program
       rtype.gen(context)
     end
     
+    log "Generating $main()"
     context.add_fn("$main", [], LLVM::Int32) do |main,|
       entry_block = context.new_block
       return_block = context.new_block
@@ -303,12 +307,12 @@ class Ast::Program
       context.builder.ret LLVM::Int32.from_i(0)
     end
 
+    log "Generating child functions"
     fns = context.gen_fns
-    log context.fn_hash.inspect
-    # fn_hash indexes actual function pointers to Ast::FuncDecs,
-    # can we use the globals hash somehow to find them?
-    # that would mean doing lookups dynamically..yuck?
     
+    log "Functions: #{fns}"
+    
+    log "Generating main()"
     context.add_fn("main", [], LLVM::Int32) do |main,|
       entry_block = context.new_block
       context.current_block = entry_block
@@ -316,7 +320,7 @@ class Ast::Program
       fns.each do |fn|
         context.globals("__#{fn.symbol}__", fn.llvm_type(context), context.functions[fn.symbol])
       end
-
+      
       context.builder.ret context.builder.call(context.functions['$main'])
     end
 
@@ -463,11 +467,27 @@ class Ast::FuncDec
   end
   
   def args_signature(context)
-    formals.map {|f| f.llvm_type(context) }.unshift mk_closure(context)
+    formals.map {|f| f.llvm_type(context) }.unshift closure_arg_type(context)
+  end
+  
+  def closure_arg_type(context)
+    LLVM.Pointer(closure_type(context))
+  end
+  
+  def closure_type(context)
+    LLVM.Struct(*freevars.map {|v| v.llvm_type(context) })
   end
   
   def mk_closure(context)
-    LLVM.Pointer(LLVM.Struct(*freevars.map {|v| v.llvm_type(context) }))
+    closure_loc_tmp = context.builder.call context.malloc, closure_type(context).size
+    closure_loc = context.builder.bit_cast closure_loc_tmp, closure_arg_type(context) 
+    
+    freevars.each_with_index do |var, i|
+      freevar_loc = context.builder.gep(closure_loc, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(i)])
+      context.builder.store(context[var.symbol].value(context), freevar_loc)
+    end
+    
+    closure_loc
   end
   
   def real_freevars
@@ -494,14 +514,12 @@ class Ast::CallSt
   def gen(context, exit_block, return_block)
     log "Ast::CallSt #{func} #{args.map{|a| a.inspect}}"
     
-    fn = func.gen(context).value(context)
+    resolver = func.gen(context)
+    fn = resolver.value(context)
     if args.length == 0
-      log "calling fn with 0 args"
-      context.builder.call fn
+      context.builder.call fn, resolver.ref.mk_closure(context)
     else
-      log "calling #{fn} with #{args.length} args"
-     log (args.map {|a| a.gen(context).value(context) }.unshift(LLVM::Int32.from_i(0))).inspect
-      context.builder.call(fn, *args.map {|a| a.gen(context).value(context) }) #.unshift(LLVM::Int32.from_i(0)))
+      context.builder.call(fn, *args.map {|a| a.gen(context).value(context) }.unshift(resolver.ref.mk_closure(context)))
     end
   end
 end
@@ -616,20 +634,19 @@ class Ast::ForSt
     loop_stop = stop.gen(context).value(context)
 
     # Assign start to loopVar
-    context.builder.store(loop_start, context[loop_symbol].value(context))
+    context.builder.store(loop_start, context[loop_symbol].reference)
     context.builder.br(test_block)
     
     context.current_block = test_block
     
-    current = context.builder.load context[loop_symbol].value(context), "loop_val"
-    context.builder.cond(context.builder.icmp(:sle, current, loop_stop), 
+    context.builder.cond(context.builder.icmp(:sle, context[loop_symbol].value(context), loop_stop), 
       body_block, exit_block)
       
     context.current_block = body_block
     body.gen(context, exit_block, return_block)
     
-    result = context.builder.add current, loop_step, "loop_temp"
-    context.builder.store(result, context[loop_symbol].value(context))
+    result = context.builder.add context[loop_symbol].value(context), loop_step, "loop_temp"
+    context.builder.store(result, context[loop_symbol].reference)
     
     context.builder.br(test_block)
     
@@ -680,7 +697,6 @@ class Ast::BinOpExp
 
   def gen(context)
     log "Ast::BinOpExp #{OPERATORS[binOp]}"
-    log left.inspect
     lhs = left.gen(context).value(context)
     rhs = right.gen(context).value(context)
     result = if binOp >= 6
@@ -729,11 +745,13 @@ class Ast::CallExp
   def gen(context)
     log "Ast::CallExp #{func}"
     
-    fn = func.gen(context).value(context)
+    resolver = func.gen(context)
+    fn = resolver.value(context)
+
     result = if args.length == 0
       context.builder.call fn
     else
-      context.builder.call(fn, *args.map {|a| a.gen(context).value(context) })
+      context.builder.call(fn, *args.map {|a| a.gen(context).value(context) }.unshift(resolver.ref.mk_closure(context)))
     end
     Resolver.new(result, self)
   end

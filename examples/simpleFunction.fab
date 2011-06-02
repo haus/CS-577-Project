@@ -1,0 +1,7 @@
+{
+	var zzTop := 3;
+	func a() {
+		write("Hai dere.", zzTop)
+	};
+	a()
+}
