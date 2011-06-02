@@ -28,7 +28,7 @@ def returning(val)
 end
 
 def log(str)
-  puts str if DEBUG
+  $stderr.puts str if DEBUG
 end
 
 class Context
@@ -58,7 +58,7 @@ class Context
   def init_runtime
     @printf = @mod.functions.add("printf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
     @scanf = @mod.functions.add("scanf", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM::Int32, {:varargs => true}))
-    @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int32], LLVM.Pointer(LLVM::Int8)))
+    @malloc = @mod.functions.add("malloc", LLVM.Function([LLVM::Int], LLVM.Pointer(LLVM::Int8)))
     @exit = @mod.functions.add("exit", LLVM.Function([LLVM::Int32], LLVM.Void))
 
     @read_int = add_fn("_read_int", LLVM.Function([LLVM.Pointer(LLVM::Int32)], LLVM.Void)) do |read_int, int|
@@ -126,7 +126,7 @@ class Context
   def init_globals
     @symbols["true"] = LLVM::Int1.from_i(1)
     @symbols["false"] = LLVM::Int1.from_i(0)
-    @symbols["nil"] = LLVM::Int8.from_i(0)
+    @symbols["nil"] = globals("__nil__", LLVM::Constant.null_ptr(LLVM::Int),LLVM::Int.from_i(0))
   end
 
   def read_int(int)
@@ -346,7 +346,7 @@ class Ast::RecordTypeDec
       i.type.llvm_type(context)
     end
     
-    context[name] = LLVM::Type.struct(elems, false)
+    context[name] = LLVM::Pointer(LLVM::Type.struct(elems, false))
   end
 end
 
@@ -380,7 +380,7 @@ class Ast::VarDec
     value = initializer.gen(context)
     variable = context.builder.alloca(type.llvm_type(context), symbol)
     context[symbol] = variable
-    context.builder.store(value, variable)
+    context.builder.store(context.builder.bit_cast(value, type.llvm_type(context)), variable)
   end
   
   def symbol
@@ -419,12 +419,12 @@ end
 
 class Ast::AssignSt
   def gen(context, exit_block, return_block)
-    log "Ast::AssignSt #{lhs}"
+    log "Ast::AssignSt #{lhs} #{lhs.type}"
     
     ref = lhs.gen(context)
     val = rhs.gen(context)
     
-    context.builder.store(val, ref)
+    context.builder.store(context.builder.bit_cast(val, lhs.type.llvm_type(context)), ref)
   end
 end
 
@@ -796,21 +796,22 @@ end
 class Ast::RecordExp
   def size_in_bytes(context)    
     @values = Array.new
-    @record_bytes = context.builder.alloca LLVM::Int, "record_bytes"
+    record_bytes = context.builder.alloca LLVM::Int, "record_bytes"
     current_bytes = context.builder.alloca LLVM::Int, "current_bytes"
-    context.builder.store LLVM::Int.from_i(0), @record_bytes
+    context.builder.store LLVM::Int.from_i(0), record_bytes
+    
     initializers.each do |initializer|
       @values[initializer.offset] = initializer.value.gen(context)
       context.builder.store @values[initializer.offset].type.size, current_bytes
-      context.builder.load current_bytes, "current_bytes"
-      @record_bytes = context.builder.add current_bytes, @record_bytes, "record_bytes"
+      record_bytes_tmp = context.builder.add(context.builder.load(current_bytes),(context.builder.load(record_bytes)), "record_bytes")
+      context.builder.store record_bytes_tmp, record_bytes
     end
+    
+    context.builder.load record_bytes
   end
 
   def allocate(context)
-    size_in_bytes(context)
-    context.builder.load @record_bytes, "record_bytes"
-    record_loc_tmp = context.builder.call context.malloc, @record_bytes
+    record_loc_tmp = context.builder.call context.malloc, size_in_bytes(context)
     record_loc_tmp_bitcast = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM.Struct(*@elems)), "record_loc_tmp_bitcast"
 
     @record_loc = context.builder.alloca LLVM::Pointer(LLVM::Type.struct(@elems, false)), "record_loc"
@@ -858,7 +859,7 @@ end
 
 class Ast::VarLvalue
   def gen(context)
-    log "Ast::VarLvalue #{symbol} #{context[symbol].inspect}"
+    log "Ast::VarLvalue #{symbol}"
     return context[symbol]
   end
   
@@ -906,15 +907,37 @@ end
 
 class Ast::RecordDerefLvalue
   def gen(context)
-    log "Ast::RecordDerefLvalue"
+    log "Ast::RecordDerefLvalue #{record.name} #{context[record.name].inspect} #{record.type} #{offset} #{name}"
     
     record_loc_tmp = record.gen(context)
-    record_loc = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(LLVM::Pointer(context[typeDec.name])), "record_loc"
+    record_loc = context.builder.bit_cast record_loc_tmp, LLVM::Pointer(context[typeDec.name]), "record_loc"
     record_base = context.builder.load record_loc, "record_base"
+    nil_check(context, record_loc_tmp)
     
     record_element_ptr = context.builder.gep record_base, [LLVM::Int32.from_i(0), LLVM::Int32.from_i(offset)]
     
   end
+  
+  def nil_check(context, record_base)
+    error_block = context.new_block
+    okay_block = context.new_block
+    
+    record_tmp = context.builder.load record_base, "record_tmp"
+
+    context.builder.cond(
+      context.builder.icmp(:eq, record_tmp, context.builder.bit_cast(context["nil"],record.type.llvm_type(context))),
+      error_block,
+      okay_block
+    )
+    
+    context.current_block = error_block
+    context.write_string(context.strings("No, please don't deref the nil pointer! Bad things will happen!"))
+    context.exit(-1)
+    context.builder.br okay_block
+    
+    context.current_block = okay_block
+  end
+  
 end
 
 program.gen(Context.new(MODULE))

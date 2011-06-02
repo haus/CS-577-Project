@@ -18,8 +18,10 @@ Matt
 + ✔ RecordTypeDec
 + ✔ ReadSt
 - RecordDeref needs nil check
-- RecordExp needs size information
-- Types need size information
++ ✔ RecordExp needs size information
++ ✔ ArrayExp needs type size information
++ ✔ Array stored as Struct of <length, array>
++ ✔ Types need size information
 
 Both
 ----

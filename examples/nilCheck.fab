@@ -8,5 +8,6 @@ write(green.a);
 write(green.b);
 write(green.c);
 write(orange.a);
-write(orange.b)
+write(orange.b);
+green := nil
 }
