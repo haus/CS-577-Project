@@ -18,7 +18,7 @@
 	write(qqq(1));
 	var b := qqq;
 	b := rrr;
-	write(rrr(2)); *]
+	write(rrr(2)); 
 	
 	func a(b:integer, c:integer) {
 		write(b, " ", c);
@@ -29,7 +29,7 @@
 	a(3,4);
 	
 	var g := d;
-	write(g(3,4));
+	write(g(3,4)); *]
 	
 	func z(y:integer) -> () -> integer {
 		func x() -> integer {

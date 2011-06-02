@@ -32,7 +32,7 @@ def log(str)
 end
 
 class Context
-  attr_accessor :builder, :current_function
+  attr_accessor :builder, :current_function, :fns_to_generate
   
   def functions
     @mod.functions
@@ -54,7 +54,11 @@ class Context
     @symbols = {}
     @strings = {}
     @globals = {}
-    @fns_to_generate = []
+    @fns_to_generate = if parent
+      parent.fns_to_generate
+    else
+      []
+    end
     
     unless parent
       init_runtime
@@ -233,7 +237,7 @@ class Context
         end
       end
       
-      context.gen_fns
+#      @fns_to_generate.unshift(*context.fns_to_generate)
     end
   end
 
