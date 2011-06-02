@@ -7,7 +7,7 @@ Eric
 - Refactor array mess
 	+ ✔ pull logic into ArrayInit, and call from Array Exp
 	+ ✔ also, boundschecking
-	- consider using a struct to represent arrays: {i32, [type x 0]}
+	+ ✔ consider using a struct to represent arrays: {i32, [type x 0]}
 - CallExps & functions
 	- MkClosure!!??!
 
@@ -17,7 +17,7 @@ Matt
 + ✔ RecordExp, RecordInit, RecordDeref
 + ✔ RecordTypeDec
 + ✔ ReadSt
-- RecordDeref needs nil check
++ ✔ RecordDeref needs nil check
 + ✔ RecordExp needs size information
 + ✔ ArrayExp needs type size information
 + ✔ Array stored as Struct of <length, array>
@@ -27,7 +27,11 @@ Both
 ----
 
 + ✔ progress report!
-- unify type handling
-	- add llvm_type to all types, for the yummy recursive generation thereof
++ ✔ unify type handling
+	+ ✔ add llvm_type to all types, for the yummy recursive generation thereof
 		+ ✔ added to NamedType, ArrayType
 		+ ✔ add to RecordTypeDec
+- testing files
+- benchmark strategy
+- benchmark results
+- final write-up
