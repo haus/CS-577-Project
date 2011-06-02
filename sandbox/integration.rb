@@ -226,12 +226,14 @@ class Context
         context.builder.br return_block
         context.current_block = return_block
         
-        if fn.resultType.name == "unit"
+        if fn.resultType.respond_to?(:name) and fn.resultType.name == "unit"
           context.builder.ret_void
         else
           context.builder.ret LLVM::Int32.from_i(0)
         end
       end
+      
+      context.gen_fns
     end
   end
 
@@ -455,6 +457,8 @@ end
 
 class Ast::FuncDecs
   def gen(context)
+    log "Ast::FuncDecs"
+    
     decs.each do |dec|
       dec.gen(context, self)
     end
@@ -463,7 +467,7 @@ end
 
 class Ast::FuncDec
   def gen(context, funcdecs)
-    log "Ast::FuncDec #{name}(#{formals.map {|f| f.name }.join(', ')}) -> #{resultType.name}"
+    log "Ast::FuncDec #{name}"
     @funcdecs = funcdecs.decs.inject({}) {|decs, dec| decs[dec.symbol] = dec; decs }
     context[symbol] = RefResolver.new(context.globals("__#{symbol}__", llvm_type(context)), self)
     context.gen_later(self)
@@ -760,15 +764,19 @@ class Ast::CallExp
   def gen(context)
     log "Ast::CallExp #{func}"
     
-    resolver = func.gen(context)
-    fn = resolver.value(context)
+    @resolver = func.gen(context)
+    fn = @resolver.value(context)
 
     result = if args.length == 0
       context.builder.call fn
     else
-      context.builder.call(fn, *args.map {|a| a.gen(context).value(context) }.unshift(resolver.ref.mk_closure(context)))
+      context.builder.call(fn, *args.map {|a| a.gen(context).value(context) }.unshift(@resolver.ref.mk_closure(context)))
     end
     Resolver.new(result, self)
+  end
+  
+  def llvm_type(context)
+    @resolver.ref.llvm_type(context)
   end
 end
 
