@@ -75,7 +75,7 @@ class Context
     @write_int = add_fn("_write_int", LLVM.Function([LLVM::Int32], LLVM.Void)) do |write_int, int|
       self.current_block = new_block
       
-      int_format_string = strings("%d\n", "int_format_string")
+      int_format_string = strings("%d", "int_format_string")
       @builder.call @printf, int_format_string, int
 
       @builder.ret_void
@@ -84,7 +84,7 @@ class Context
     @write_string = add_fn("_write_string", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM.Void)) do |write_string, string|
       self.current_block = new_block
 
-      string_format_string = strings("%s\n", "string_format_string")
+      string_format_string = strings("%s", "string_format_string")
       @builder.call @printf, string_format_string, string
 
       @builder.ret_void
@@ -115,6 +115,15 @@ class Context
       self.current_block = return_block
       @builder.ret_void
     end
+    
+    @write_nl = add_fn("_write_nl", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM.Void)) do |write_nl, string|
+      self.current_block = new_block
+
+      string_format_string = strings("\n", "string_format_string")
+      @builder.call @printf, string_format_string, string
+
+      @builder.ret_void
+    end
   end
   
   def init_types
@@ -143,6 +152,10 @@ class Context
   
   def write_string(string)
     @builder.call @write_string, string
+  end
+  
+  def write_nl
+    @builder.call @write_nl
   end
   
   def exit(value)
@@ -468,6 +481,8 @@ class Ast::WriteSt
       end
       
     end
+    
+    context.write_nl
   end
 end
 
@@ -597,6 +612,8 @@ class Ast::ReturnSt
 
     if (returnValue != nil)
       context.builder.ret returnValue.gen(context)
+    else
+      context.builder.ret
     end
   end
 end
