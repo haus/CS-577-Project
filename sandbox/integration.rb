@@ -43,7 +43,7 @@ class Context
     @parent = parent
     @current_function = nil
     @current_block = nil
-    @builder = LLVM::Builder.create
+    @builder = LLVM::Builder.new
     @temp_index = 0
     @symbols = {}
     @strings = {}
@@ -254,7 +254,7 @@ class Context
   end
   
   def engine
-    LLVM::ExecutionEngine.create_jit_compiler(@mod)
+    LLVM::JITCompiler.new(@mod)
   end
   
   def execute
