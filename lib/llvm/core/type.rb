@@ -1,12 +1,5 @@
 module LLVM  
   class Type
-    private_class_method :new
-    
-    # @private
-    def initialize(ptr)
-      @ptr = ptr
-    end
-    
     # @private
     def to_ptr
       @ptr
@@ -34,11 +27,11 @@ module LLVM
 
     # Returns the size of the type.
     def size
-      Int64.from_ptr(C.LLVMSizeOf(self))
+      LLVM::Int64.from_ptr(C.LLVMSizeOf(self))
     end
     
     def align
-      Int64.from_ptr(C.LLVMAlignOf(self))
+      LLVM::Int64.from_ptr(C.LLVMAlignOf(self))
     end
 
     # Returns the type of this types elements (works only for Pointer, Vector, and Array types.)
@@ -64,8 +57,12 @@ module LLVM
       Type.pointer(self, address_space)
     end
     
+    # @private
     def self.from_ptr(ptr)
-      ptr.null? ? nil : new(ptr)
+      return if ptr.null?
+      ty = allocate
+      ty.instance_variable_set(:@ptr, ptr)
+      ty
     end
     
     # Creates an array type of Type with the given size.
@@ -89,7 +86,7 @@ module LLVM
       arg_types.map! { |ty| LLVM::Type(ty) }
       arg_types_ptr = FFI::MemoryPointer.new(FFI.type_size(:pointer) * arg_types.size)
       arg_types_ptr.write_array_of_pointer(arg_types)
-      from_ptr(C.LLVMFunctionType(LLVM::Type(result_type), arg_types_ptr, arg_types.size, options[:varargs] ? 1 : 0))
+      FunctionType.from_ptr(C.LLVMFunctionType(LLVM::Type(result_type), arg_types_ptr, arg_types.size, options[:varargs] ? 1 : 0))
     end
     
     # Creates a struct type with the given array of element types.
@@ -121,9 +118,23 @@ module LLVM
       C.LLVMRefineType(self, ty)
     end
   end
+
+  class IntType < Type
+    def width
+      C.LLVMGetIntTypeWidth(self)
+    end
+  end
+
+  class FunctionType < Type
+    def return_type
+      LLVM::Type.from_ptr(C.LLVMGetReturnType(self))
+    end
+  end
+
+  module_function
   
   # Creates a Type from the given object.
-  def LLVM.Type(ty)
+  def Type(ty)
     case ty
     when LLVM::Type then ty
     else ty.type
@@ -131,32 +142,32 @@ module LLVM
   end
   
   # Shortcut to Type.array.
-  def LLVM.Array(ty, sz = 0)
+  def Array(ty, sz = 0)
     LLVM::Type.array(ty, sz)
   end
   
   # Shortcut to Type.pointer.
-  def LLVM.Pointer(ty)
+  def Pointer(ty)
     LLVM::Type.pointer(ty)
   end
   
   # Shortcut to Type.vector.
-  def LLVM.Vector(ty, sz)
+  def Vector(ty, sz)
     LLVM::Type.vector(ty, sz)
   end
   
   # Shortcut to Type.function.
-  def LLVM.Function(argtypes, rettype, options = {})
+  def Function(argtypes, rettype, options = {})
     LLVM::Type.function(argtypes, rettype, options)
   end
   
   # Shortcut to Type.struct.
-  def LLVM.Struct(*elt_types)
+  def Struct(*elt_types)
     LLVM::Type.struct(elt_types, false)
   end
 
   # Shortcut to Type.void.
-  def LLVM.Void
+  def Void
     LLVM::Type.void
   end
 end

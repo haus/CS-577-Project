@@ -20,7 +20,7 @@ program = AstShim::giveMeAST(source)
 Check.check(program)
 
 DEBUG = true
-MODULE = LLVM::Module.create("fabl")
+MODULE = LLVM::Module.new("fabl")
 
 def returning(val)
   yield val

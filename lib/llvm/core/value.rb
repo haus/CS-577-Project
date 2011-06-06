@@ -2,14 +2,10 @@ module LLVM
   class Value
     # @private
     def self.from_ptr(ptr)
-      new(ptr) unless ptr.null?
-    end
-
-    private_class_method :new
-
-    # @private
-    def initialize(ptr)
-      @ptr = ptr
+      return if ptr.null?
+      val = allocate
+      val.instance_variable_set(:@ptr, ptr)
+      val
     end
 
     # @private
@@ -25,6 +21,10 @@ module LLVM
       else
         false
       end
+    end
+    
+    def hash
+      @ptr.address.hash
     end
 
     # Checks if the value is equal to other.
@@ -104,7 +104,7 @@ module LLVM
     # Build the basic block with the given builder. Creates a new one if nil. Yields the builder.
     def build(builder = nil)
       if builder.nil?
-        builder = Builder.create
+        builder = Builder.new
         islocal = true
       else
         islocal = false
@@ -401,7 +401,7 @@ module LLVM
       eval <<-KLASS
         class #{name} < ConstantInt
           def self.type
-            Type.from_ptr(C.LLVMIntType(#{width}))
+            IntType.from_ptr(C.LLVMIntType(#{width}))
           end
         end
       KLASS
@@ -412,7 +412,8 @@ module LLVM
   end
 
   # Native integer type
-  ::LLVM::Int = const_get("Int#{NATIVE_INT_SIZE}")
+  bits = FFI.type_size(:int) * 8
+  ::LLVM::Int = const_get("Int#{bits}")
 
   # Creates a LLVM Int (subclass of ConstantInt) at the NATIVE_INT_SIZE from a integer (val).
   def LLVM.Int(val)
@@ -421,6 +422,10 @@ module LLVM
     when Integer then Int.from_i(val)
     end
   end
+  
+  # Boolean values
+  ::LLVM::TRUE = ::LLVM::Int1.from_i(-1)
+  ::LLVM::FALSE = ::LLVM::Int1.from_i(0)
 
   class ConstantReal < Constant
     # Creates a ConstantReal from a float of Type.
@@ -598,6 +603,10 @@ module LLVM
       @basic_block_collection ||= BasicBlockCollection.new(self)
     end
 
+    def type
+      FunctionType.from_ptr(C.LLVMTypeOf(self))
+    end
+
     # @private
     class BasicBlockCollection
       include Enumerable
@@ -737,26 +746,21 @@ module LLVM
     end
   end
 
+  # @private
   class Phi < Instruction
     # Add incoming branches to a phi node by passing an alternating list of
     # resulting values and BasicBlocks. e.g.
     #   phi.add_incoming(val1, block1, val2, block2, ...)
-    def add_incoming(*incoming)
-      vals, blocks = [], []
-      incoming.each_with_index do |node, i|
-        (i % 2 == 0 ? vals : blocks) << node
-      end
+    def add_incoming(incoming)
+      blks = incoming.keys
+      vals = incoming.values_at(*blks)
+      size = incoming.size
 
-      unless vals.size == blocks.size
-        raise ArgumentError, "Expected vals.size and blocks.size to match"
-      end
-
-      size = vals.size
       FFI::MemoryPointer.new(FFI.type_size(:pointer) * size) do |vals_ptr|
         vals_ptr.write_array_of_pointer(vals)
-        FFI::MemoryPointer.new(FFI.type_size(:pointer) * size) do |blocks_ptr|
-          blocks_ptr.write_array_of_pointer(blocks)
-          C.LLVMAddIncoming(self, vals_ptr, blocks_ptr, vals.size)
+        FFI::MemoryPointer.new(FFI.type_size(:pointer) * size) do |blks_ptr|
+          blks_ptr.write_array_of_pointer(blks)
+          C.LLVMAddIncoming(self, vals_ptr, blks_ptr, vals.size)
         end
       end
 
@@ -764,6 +768,7 @@ module LLVM
     end
   end
 
+  # @private
   class SwitchInst < Instruction
     # Adds a case to a switch instruction. First the value to match on, then
     # the basic block.
