@@ -28,7 +28,7 @@ def returning(val)
 end
 
 def log(str)
-  $stderr.puts str if DEBUG
+  $stdout.puts str if DEBUG
 end
 
 class Context
@@ -115,15 +115,6 @@ class Context
       self.current_block = return_block
       @builder.ret_void
     end
-    
-    @write_nl = add_fn("_write_nl", LLVM.Function([LLVM.Pointer(LLVM::Int8)], LLVM.Void)) do |write_nl, string|
-      self.current_block = new_block
-
-      string_format_string = strings("\n", "string_format_string")
-      @builder.call @printf, string_format_string, string
-
-      @builder.ret_void
-    end
   end
   
   def init_types
@@ -149,13 +140,9 @@ class Context
   def write_int(int)
     @builder.call @write_int, int
   end
-  
+
   def write_string(string)
     @builder.call @write_string, string
-  end
-  
-  def write_nl
-    @builder.call @write_nl
   end
   
   def exit(value)
@@ -233,6 +220,7 @@ class Context
     @fpm << 'constprop'
     @fpm << 'simplifycfg'
     @fpm << 'adce'
+    @fpm << 'instcombine'
     @mod.functions.each {|f| @fpm.run(f) }
   end
   
@@ -317,6 +305,7 @@ class Ast::Program
     end
 
     context.verify
+    context.optimize!
     context.optimize!
     context.dump('fabl.s')
 
@@ -482,7 +471,7 @@ class Ast::WriteSt
       
     end
     
-    context.write_nl
+    context.write_string(context.strings("\n"))
   end
 end
 
