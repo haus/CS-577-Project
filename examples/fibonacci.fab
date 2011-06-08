@@ -1,0 +1,17 @@
+{
+  var a := 1;
+
+  func fibonacci(n:integer) -> integer {
+    if n = 0 then
+      return 0
+    else if n = 1 then
+      return 1
+    else
+      return fibonacci(n-1) + fibonacci(n-2)
+  };
+  
+  write("Please enter the fib number you want calculated.");
+  read(a);
+  write(fibonacci(a))
+
+}

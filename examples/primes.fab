@@ -1,0 +1,17 @@
+{
+  var i := 0; 
+  var j := 0; 
+  var prime := false;
+  write(2);
+  for i := 3 to 1000000 do {
+    prime := true;
+    for j := 2 to i-1 by 1 do {
+      if (i mod j) = 0 then {
+        j := 2;
+        prime := false
+      }
+    };
+    if prime then
+      write(i)
+  }
+}
