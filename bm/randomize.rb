@@ -3,7 +3,7 @@
 out = String.new
 out << "{"
 
-0.upto(4998) do |x|
+0.upto(ARGV[0].to_i - 1) do |x|
   out << "#{rand(50000)}, "
 end
 

@@ -11,9 +11,6 @@ do
 	fablCMD="$fabl $F"
 	$fablCMD 2> $filename.ll
 	llc -o $filename.s $filename.ll
-#	echo $fablCMD
-#	echo $comp
-#	break
 done
 
 mv bm/fab/*.ll bm/llvm-ir
