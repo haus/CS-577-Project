@@ -125,7 +125,7 @@ LBB4_9:                                 ##   in Loop: Header=BB4_1 Depth=1
 LBB4_1:                                 ## =>This Loop Header: Depth=1
                                         ##     Child Loop BB4_3 Depth 2
 	movl	20(%rsp), %r14d
-	cmpl	$1000000, %r14d         ## imm = 0xF4240
+	cmpl	$50000, %r14d           ## imm = 0xC350
 	jg	LBB4_10
 ## BB#2:                                ##   in Loop: Header=BB4_1 Depth=1
 	movb	$1, 15(%rsp)

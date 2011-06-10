@@ -119,7 +119,7 @@ LBB4_3:                                 ##   in Loop: Header=BB4_1 Depth=1
 LBB4_5:                                 ##   in Loop: Header=BB4_1 Depth=1
 	incl	%ebx
 	incl	%r15d
-	cmpl	$1000001, %r15d         ## imm = 0xF4241
+	cmpl	$50001, %r15d           ## imm = 0xC351
 	jl	LBB4_1
 ## BB#6:
 	xorl	%eax, %eax

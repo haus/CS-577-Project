@@ -91,7 +91,7 @@ define i32 @"$main"() {
 
 ; <label>:8                                       ; preds = %6, %7
   %loop_temp2 = add i32 %i_3.05, 1
-  %9 = icmp slt i32 %loop_temp2, 1000001
+  %9 = icmp slt i32 %loop_temp2, 50001
   br i1 %9, label %1, label %3
 }
 

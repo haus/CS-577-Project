@@ -116,7 +116,7 @@ LBB4_6:                                 ##   in Loop: Header=BB4_1 Depth=1
 	incl	%r15d
 LBB4_1:                                 ## =>This Loop Header: Depth=1
                                         ##     Child Loop BB4_2 Depth 2
-	cmpl	$1000001, %r15d         ## imm = 0xF4241
+	cmpl	$50001, %r15d           ## imm = 0xC351
 	movb	$1, %cl
 	movl	$2, %esi
 	jl	LBB4_2

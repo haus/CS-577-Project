@@ -32,8 +32,8 @@ L0_0:
 	movl $3,%ebx
     # L2
 L0_2:
-    # cmpI i_3,1000000
-	cmpl $1000000,%ebx
+    # cmpI i_3,50000
+	cmpl $50000,%ebx
     # jg L3
 	jg L0_3
     # movB true,prime_5

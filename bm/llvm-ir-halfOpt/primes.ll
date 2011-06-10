@@ -56,7 +56,7 @@ define i32 @"$main"() {
 
 ; <label>:1                                       ; preds = %12, %0
   %i_3.0 = phi i32 [ 3, %0 ], [ %loop_temp2, %12 ]
-  %2 = icmp sle i32 %i_3.0, 1000000
+  %2 = icmp sle i32 %i_3.0, 50000
   br i1 %2, label %3, label %4
 
 ; <label>:3                                       ; preds = %1
