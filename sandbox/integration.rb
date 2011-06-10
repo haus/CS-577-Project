@@ -15,10 +15,6 @@ include_class 'Ast'
 include_class 'AstShim'
 include_class 'Check'
 
-source = ARGV[0] || 'examples/if.fab'
-program = AstShim::giveMeAST(source)
-Check.check(program)
-
 DEBUG = true
 MODULE = LLVM::Module.new("fabl")
 
@@ -946,4 +942,18 @@ class Ast::RecordDerefLvalue
   
 end
 
+class Integration
+  def initialize(source)
+    @program = AstShim::giveMeAST(source)
+  end
+  
+  def fabilize
+    Check.check(@program)
+    @program.gen(Context.new(MODULE))
+  end
+end
+
+source = ARGV[0] || "examples/if.fab"
+program = AstShim::giveMeAST(source)
+Check.check(program)
 program.gen(Context.new(MODULE))
