@@ -209,15 +209,28 @@ class Context
     @builder.position_at_end(block)
   end
   
-  def optimize!
+  def optimize!(level = 'half')
     @engine ||= engine
     @fpm = LLVM::FunctionPassManager.new(@engine, @mod)
     @fpm << 'mem2reg'
     @fpm << 'constprop'
     @fpm << 'simplifycfg'
     @fpm << 'adce'
-    @fpm << 'instcombine'
+
+    if (level == 'full')
+      @fpm << 'reassociate'
+      @fpm << 'instcombine'
+      @fpm << 'loop_unroll'
+      @fpm << 'loop_rotate'
+      @fpm << 'loop_deletion'
+      @fpm << 'simplify_libcalls'
+    end
+    
     @mod.functions.each {|f| @fpm.run(f) }
+    # Not currently working...
+    #@pm = LLVM::PassManager.new(@engine)
+    #@pm << 'gdce'
+    #@pm.run(@mod)
   end
   
   def verify
@@ -267,7 +280,7 @@ class Context
 end
 
 class Ast::Program
-  def gen(context, doExecute = true)
+  def gen(context, doOptimize = 'half', doExecute = true)
     log "Ast::Program"
     
     rtypes.each do |rtype|
@@ -301,8 +314,13 @@ class Ast::Program
     end
 
     context.verify
-    context.optimize!
-    context.optimize!
+    
+    if doOptimize == 'half'
+      context.optimize!
+    elsif doOptimize == 'full'
+      context.optimize!('full')      
+    end
+    
     context.dump('fabl.s')
 
     if doExecute
@@ -776,7 +794,7 @@ class Ast::ArrayExp
   
   def size_in_bytes(context)
     current_size = context.builder.load @array_size, "current_size"
-    array_bytes = context.builder.mul current_size, @element_size, "array_bytes"
+    array_bytes = context.builder.mul current_size, context.builder.bit_cast(@element_size, LLVM::Int32), "array_bytes"
     count_size = LLVM::Int32.from_i(4)
     context.builder.add array_bytes, count_size, "total_bytes"
   end
@@ -945,17 +963,19 @@ class Ast::RecordDerefLvalue
 end
 
 class Integration
-  def initialize(source)
+  def initialize(source, optLevel = 'half', doExec = false)
     @program = AstShim::giveMeAST(source)
+    @optLevel = optLevel
+    @doExec = doExec
   end
   
   def fabilize
     Check.check(@program)
-    @program.gen(Context.new(MODULE))
+    @program.gen(Context.new(MODULE), @optLevel, @doExec)
   end
 end
 
 source = ARGV[0] || "examples/if.fab"
 program = AstShim::giveMeAST(source)
 Check.check(program)
-program.gen(Context.new(MODULE), ARGV[1])
+program.gen(Context.new(MODULE), ARGV[1] || 'half', ARGV[2])
