@@ -15,7 +15,7 @@ include_class 'Ast'
 include_class 'AstShim'
 include_class 'Check'
 
-DEBUG = true
+DEBUG = false
 MODULE = LLVM::Module.new("fabl")
 
 def returning(val)
@@ -267,7 +267,7 @@ class Context
 end
 
 class Ast::Program
-  def gen(context)
+  def gen(context, doExecute = true)
     log "Ast::Program"
     
     rtypes.each do |rtype|
@@ -305,7 +305,9 @@ class Ast::Program
     context.optimize!
     context.dump('fabl.s')
 
-    context.execute
+    if doExecute
+      context.execute
+    end
   end
   
 end
@@ -956,4 +958,4 @@ end
 source = ARGV[0] || "examples/if.fab"
 program = AstShim::giveMeAST(source)
 Check.check(program)
-program.gen(Context.new(MODULE))
+program.gen(Context.new(MODULE), ARGV[1])
