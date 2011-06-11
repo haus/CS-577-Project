@@ -9,7 +9,6 @@ binDirs = ["llvm-binary-noOpt", "llvm-binary-fullOpt", "ref-binary"]
 irDirs = ["llvm-ir-noOpt", "llvm-ir-fullOpt"]
 fabDir = "fab"
 
-=begin
 # Time the binary runs...
 binDirs.each do |basedir|
   puts "#{basedir} - #{n} times"
@@ -38,7 +37,7 @@ irDirs.each do |basedir|
   end
   puts "\n"
 end
-=end
+
 n = 50
 # Time the noop on the ref-interpreter...
 puts "Reference Interpreter"
