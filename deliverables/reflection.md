@@ -1,4 +1,4 @@
-FABL Presentation
+FABL Project Report
 -----------------
 
 - Matthaus Litteken <mlitteken@cs.pdx.edu>
@@ -7,9 +7,7 @@ FABL Presentation
 Resources & Platforms
 =====================
 
-We decided to build from the type-checked AST emitted by the reference implementation of FAB from CS322. We were interested in using an alternative to Java for the implementation of the compiler, and so wrote it using JRuby in order to have direct access to the AST object. We also decided that, rather than generate LLVM-IR as ascii text, we would use the API, which fortunately is available to JRuby through the Ruby FFI. 
-
-<!-- We had a type-checked AST from the reference typechecker of CS322. Since this was a java object, no llvm/java API, so we use jRuby with FFI bindings to LLVM. This worked well, after resolving access-qualifier issues (made everything public). -->
+We decided to build from the type-checked AST emitted by the reference implementation of FAB from CS322. We were interested in using an alternative to Java for the implementation of the compiler, and so wrote it using JRuby in order to have direct access to the AST object. We also decided that, rather than generate LLVM-IR as ascii text, we would use the API, which fortunately is available to JRuby through the Ruby FFI.
 
 Installation & Running
 ======================
@@ -24,22 +22,16 @@ Installation & Running
 The Design
 ==========
 
-The compiler walks the AST, generating code for all top-level code and remembering functions to be generated later. <!-- Although this process could have worked, due to some short-sightedness a suitable mechanism for binding functions was not completed as part of this work; a possible solution will be discussed in the Future Work section. --> We began our process by integrating the AST with JRuby. In order to do this, we had to modify Ast.java to add 'public' access qualifiers to all fields and methods, because although we were using Ruby's ability to re-open classes and add methods to them, the specific implementation which JRuby uses seems to insert a class shim, which rendered the package variables inaccessible to our code.
+The compiler walks the AST, generating code for all top-level code and remembering functions to be generated later. We began our process by integrating the AST with JRuby. In order to do this, we had to modify Ast.java to add 'public' access qualifiers to all fields and methods, because although we were using Ruby's ability to re-open classes and add methods to them, the specific implementation which JRuby uses seems to insert a class shim, which rendered the package variables inaccessible to our code.
 
 The actual walk of the AST was performed by functions which we added to the Java AST objects using the aformentioned open classes of Ruby. These ended up being quite similar, though slightly less indirect, than the visitor pattern methods we wrote in CS322. Each of these gen() methods took a context as a parmater, which handled some of the LLVM-related bookkeeping (such as setting the current function & basic block) and maintaining a symbol table. The symbol table in the main branch simply resolved names to memory addresses (allocated by the LLVM alloca instruction), however in the unfinished 'closure' branch it was necessary to add "Resolvers" which mapped symbols to a tuple of (memory address, AST node) in order to preserve type information.
-
-<!-- For better or for worse (that is to say, for worse) we chose to do an AST-walking-compiler. This works for the most part, but the code has gotten pretty messy. Probably would transform the AST into a simplified, native-Ruby (or other host-language) representation. Still, were able to quickly bootstrap most of the FAB language quickly.
-
-Symbol table maps references to AST nodes, which aids in Type generation. 
-
-Still working on closures, ugh. -->
 
 Results
 =======
 
-(* insert fanciness here *)
+LLVM optimizations are impressive, considering how easy it is to employ them. Most of them are simple to add, however the order in which they should be applied is not obvious or documented. By trial and error, and by noticing the large number of lines remaining in optimized code we added another mem2reg pass at the end of the optimizers. This reduced the total code size by almost 2/3 in some cases. The first
 
-LLVM optimizations are impressive, considering how easy it is to employ them. Simple to add, etc. Benchmarking is in progress, so no performance comparisons yet.
+
 
 Reflections
 ===========
@@ -56,7 +48,7 @@ Adding closures to this implementation proved to be an extremely difficult chall
 
 We think this would be a suitable workaround which would enable us to avoid the full linearization process with just a simple pre-processing phase.
 
-One other major challenge in this project has been ensuring that we generate the correct types; LLVM IR is fully typed, and in fact its API depends on having the correct types available during code generation: if an operation is performed on an instruction of the wrong type, in general the process will segfault. One particular instruction which proved unruly was getElementPointer. <!-- haus: fill in gep experience? :) -->
+One other major challenge in this project has been ensuring that we generate the correct types; LLVM IR is fully typed, and in fact its API depends on having the correct types available during code generation: if an operation is performed on an instruction of the wrong type, in general the process will segfault. One particular instruction which proved unruly was getElementPointer. getElementPointer was often 
 
 LLVM's IR is strongly-typed. Constructing type signatures for a function which takes itself is "fun".. llvm-ruby's API is fairly well-adapted to Ruby idioms. However, as we were working on the project, some improvements have been made to the development branch would make some of the code nicer.
 
@@ -65,4 +57,6 @@ Future Work
 
 We would like to complete the work to support full FAB function-calling semantics including closures and mutual-recursion. In addition, in order to test more of LLVM's optimization infrastructure, real numbers would open up the door to more numerical testing. LLVM includes primitives for assisting with garbage collection, although it does not provide a garbage collector.
 
-Reals, functions, closures, garbage collection, looking into order of  optimization, figuring out IPO, cleaning up & commenting the code.
+Other items which could be given attention given more time would include some commenting of the code, for easier maintenance. Also, much of the llvm assembly we generate is overly verbose and inefficient. We could look at some of the changes that the initial optimizer passes make and see if any of that could be easily changed at the generation level of FABL.
+
+One other task would be deciding the optimal order for the optimization passes. Some of them clearly depend upon or are aided by other passes, and we could find no stated optimal order in the llvm references. Figuring out which optimizations are most beneficial would also be a good thing to do.

@@ -980,4 +980,4 @@ end
 source = ARGV[0] || "examples/if.fab"
 program = AstShim::giveMeAST(source)
 Check.check(program)
-program.gen(Context.new(MODULE), ARGV[1] || 'half', ARGV[2])
+program.gen(Context.new(MODULE), ARGV[1] || 'half', ARGV[2] == "true")
