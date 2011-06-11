@@ -216,6 +216,7 @@ class Context
     @fpm << 'constprop'
     @fpm << 'simplifycfg'
     @fpm << 'adce'
+    @fpm << 'mem2reg'
 
     if (level == 'full')
       @fpm << 'reassociate'
@@ -224,6 +225,7 @@ class Context
       @fpm << 'loop_rotate'
       @fpm << 'loop_deletion'
       @fpm << 'simplify_libcalls'
+      @fpm << 'mem2reg'
     end
     
     @mod.functions.each {|f| @fpm.run(f) }

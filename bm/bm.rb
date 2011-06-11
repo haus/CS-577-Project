@@ -24,7 +24,7 @@ binDirs.each do |basedir|
   puts "\n"
 end
 
-n = n / 10
+n = n / 20
 # Time the llvm-interpreter...
 irDirs.each do |basedir|
   puts "#{basedir} - #{n} times"
