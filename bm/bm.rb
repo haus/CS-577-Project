@@ -5,15 +5,15 @@ require 'benchmark'
 # for each fab in fablist
 # if needs array, add gen'd array to fab then proceed
 n = ARGV[0].to_i
-binDirs = ["llvm-binary-noOpt", "llvm-binary-halfOpt", "llvm-binary-fullOpt"]
+binDirs = ["llvm-binary-noOpt", "llvm-binary-halfOpt", "llvm-binary-fullOpt", "ref-binary"]
 irDirs = ["llvm-ir-noOpt", "llvm-ir-halfOpt", "llvm-ir-fullOpt"]
-refDir = "ref-binary"
+fabDir = "fab"
 
 
 # Time the binary runs...
 binDirs.each do |basedir|
   puts "#{basedir} - #{n} times"
-  puts "===================="
+  puts "====================="
   Benchmark.bm(20) do |x|
     Dir.new(basedir).entries.each do |file|
       if File.file?("#{basedir}/#{file}") and file != "primes.bin"
@@ -27,7 +27,7 @@ end
 # Time the llvm-interpreter...
 irDirs.each do |basedir|
   puts "#{basedir} - #{n} times"
-  puts "===================="
+  puts "====================="
   Benchmark.bm(20) do |x|
     Dir.new(basedir).entries.each do |file|
       if File.file?("#{basedir}/#{file}") and file != "primes.ll"
@@ -38,3 +38,14 @@ irDirs.each do |basedir|
   puts "\n"
 end
 
+# Time the noop on the ref-interpreter...
+puts "Reference Interpreter"
+puts "====================="
+Benchmark.bm(20) do |x|
+  Dir.new("fab").entries.each do |file|
+    if File.file?("#{basedir}/#{file}") and file != "primes.fab"
+      x.report("#{file}") { for i in 1..n; `java -classpath ref-interpreter/frontend.jar:ref-interpreter/interp.jar "fab/#{file}"`; end}
+    end
+  end
+end
+puts "\n"

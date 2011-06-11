@@ -4,6 +4,7 @@
 # $A{0}0	%rsi
 # $RET	%rax
 # $T1	%rsi
+# $T2	%rsi
 # $A{2}0	%rsi
 # i_3	%rbx
 # j_4	%rdx
@@ -69,8 +70,11 @@ L0_4:
 	jmp L0_7
     # L6
 L0_6:
-    # movI 2,j_4
-	movl $2,%edx
+    # subI i_3,1,$T2
+	movl %ebx,%esi
+	subl $1,%esi
+    # movI $T2,j_4
+	movl %esi,%edx
     # movB false,prime_5
 	movb $0,%al
     # jmp L8
