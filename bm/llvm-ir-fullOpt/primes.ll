@@ -68,16 +68,16 @@ define i32 @"$main"() {
 
 ; <label>:4                                       ; preds = %.lr.ph, %4
   %j_4.04 = phi i32 [ 2, %.lr.ph ], [ %loop_temp, %4 ]
-  %prime_5.03 = phi i1 [ true, %.lr.ph ], [ %.prime_5.0, %4 ]
+  %prime_5.03 = phi i1 [ true, %.lr.ph ], [ %prime_5.1, %4 ]
   %t_4 = srem i32 %i_3.05, %j_4.04
   %not.t_5 = icmp ne i32 %t_4, 0
-  %.prime_5.0 = and i1 %prime_5.03, %not.t_5
+  %prime_5.1 = and i1 %prime_5.03, %not.t_5
   %loop_temp = add i32 %j_4.04, 1
   %5 = icmp sgt i32 %loop_temp, %t_1
   br i1 %5, label %._crit_edge, label %4
 
 ._crit_edge:                                      ; preds = %4
-  %split = phi i1 [ %.prime_5.0, %4 ]
+  %split = phi i1 [ %prime_5.1, %4 ]
   br label %6
 
 ; <label>:6                                       ; preds = %._crit_edge, %1

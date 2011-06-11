@@ -92,12 +92,14 @@ define i32 @"$main"() {
   br i1 %9, label %12, label %13
 
 ; <label>:10                                      ; preds = %6
-  %t_6 = load i1* %prime_5
-  %11 = icmp eq i1 %t_6, true
+  %t_8 = load i1* %prime_5
+  %11 = icmp eq i1 %t_8, true
   br i1 %11, label %15, label %16
 
 ; <label>:12                                      ; preds = %8
-  store i32 2, i32* %j_4
+  %t_6 = load i32* %i_3
+  %t_7 = sub i32 %t_6, 1
+  store i32 %t_7, i32* %j_4
   store i1 false, i1* %prime_5
   br label %14
 
@@ -110,8 +112,8 @@ define i32 @"$main"() {
   br label %6
 
 ; <label>:15                                      ; preds = %10
-  %t_7 = load i32* %i_3
-  call void @_write_int(i32 %t_7)
+  %t_9 = load i32* %i_3
+  call void @_write_int(i32 %t_9)
   call void @_write_string(i8* getelementptr inbounds ([2 x i8]* @0, i32 0, i32 0))
   br label %17
 

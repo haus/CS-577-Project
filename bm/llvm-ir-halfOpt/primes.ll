@@ -67,7 +67,7 @@ define i32 @"$main"() {
   ret i32 0
 
 ; <label>:5                                       ; preds = %7, %3
-  %prime_5.0 = phi i1 [ true, %3 ], [ %.prime_5.0, %7 ]
+  %prime_5.0 = phi i1 [ true, %3 ], [ %prime_5.1, %7 ]
   %j_4.0 = phi i32 [ 2, %3 ], [ %loop_temp, %7 ]
   %6 = icmp sle i32 %j_4.0, %t_1
   br i1 %6, label %7, label %9
@@ -76,7 +76,7 @@ define i32 @"$main"() {
   %t_4 = srem i32 %i_3.0, %j_4.0
   %t_5 = icmp eq i32 %t_4, 0
   %8 = icmp eq i1 %t_5, true
-  %.prime_5.0 = select i1 %8, i1 false, i1 %prime_5.0
+  %prime_5.1 = select i1 %8, i1 false, i1 %prime_5.0
   %loop_temp = add i32 %j_4.0, 1
   br label %5
 

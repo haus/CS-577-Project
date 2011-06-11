@@ -7,7 +7,7 @@
     prime := true;
     for j := 2 to i-1 by 1 do {
       if (i mod j) = 0 then {
-        j := 2;
+        j := i-1;
         prime := false
       }
     };

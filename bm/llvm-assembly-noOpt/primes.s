@@ -99,7 +99,9 @@ LBB4_4:                                 ##   in Loop: Header=BB4_3 Depth=2
 	testl	%edx, %edx
 	jne	LBB4_6
 ## BB#5:                                ##   in Loop: Header=BB4_3 Depth=2
-	movl	$2, 16(%rsp)
+	movl	20(%rsp), %eax
+	decl	%eax
+	movl	%eax, 16(%rsp)
 	movb	$0, 15(%rsp)
 LBB4_6:                                 ##   in Loop: Header=BB4_3 Depth=2
 	incl	%esi
