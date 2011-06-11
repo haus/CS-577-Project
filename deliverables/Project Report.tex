@@ -66,11 +66,12 @@
 We decided to build from the type-checked AST emitted by the reference implementation of FAB from CS322. We were interested in using an alternative to Java for the implementation of the compiler, and so wrote it using JRuby in order to have direct access to the AST object. We also decided that, rather than generate LLVM-IR as ascii text, we would use the API, which fortunately is available to JRuby through the Ruby FFI.
 
 \subsection{Installation \& Running}
+The source for the project can be found via our git repository (git@github.com:mlitteken/CS-577-Project.git).
 
-(haus please check)
 \begin{itemize}
 \item{Install LLVM 2.9: http://llvm.org/}
 \item{Install JRuby: http://www.jruby.org/}
+\item{Clone git repository: `git clone git@github.com:mlitteken/CS-577-Project.git`}
 \item{using JRuby, `gem install ffi` and `gem install ruby-debug`}
 \item{in the root of the source tree, jruby -J-classpath .:src:src/frontend.jar sandbox/integration.rb path/to/file.fab [none|half|full] [true|false]}
 \end{itemize}
@@ -102,7 +103,6 @@ Even with the optimizations, the compiled binaries using the llvm toolchain were
 \centering
 \includegraphics[width=25mm]{fullOpt.png}
 \end{figure}
-
 
 The most interesting benchmarks were the bubblesorts and array initializations of varying size, and the noop baseline. The noop baseline was informative, as it displays how much extra code is added to our implementation by default. 
 
@@ -146,7 +146,9 @@ sortBubble5000 & 6663.95 & 139629.5 & 36867.5 & 36718.98\\ \hline
 \end{tabular}
 \end{table}
 
+Some more other benchmarks were planned, but depended upon function and recursion support, which was not completed. Fibonacci as well as some currying were planned.
 
+In general, the compiled llvm code was comparable to the reference compiler. It was a touch slower, but with the exception of the primes and 5000 element bubblesort, they were within a second in execution time over 500 iterations.
 
 
 \subsection{Reflections}
